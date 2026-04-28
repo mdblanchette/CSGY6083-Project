@@ -30,6 +30,7 @@ CREATE TABLE Workspace_Members (
 	workspace_id	INT NOT NULL REFERENCES Workspaces(workspace_id) ON DELETE CASCADE,
 	user_id		INT NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
 	is_admin	BOOLEAN NOT NULL DEFAULT FALSE,
+	joined_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (workspace_id, user_id)
 );
 
@@ -57,6 +58,7 @@ CREATE TABLE Channel_Members (
 	channel_id	INT NOT NULL REFERENCES Channels(channel_id) ON DELETE CASCADE,
 	user_id		INT NOT NULL REFERENCES Users(user_id)       ON DELETE CASCADE,
 	is_admin	BOOLEAN NOT NULL DEFAULT FALSE,
+	joined_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (channel_id, user_id)
 );
 
