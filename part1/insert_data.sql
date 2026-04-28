@@ -28,16 +28,16 @@ INSERT INTO Workspaces (name, description, created_by, created_at) VALUES
 --
 -- NOT in ws 1: Frank(6)
 -- NOT in ws 2: Alice(1), Charlie(3)
-INSERT INTO Workspace_Members (workspace_id, user_id, is_admin) VALUES
-(1, 1, TRUE),    -- Alice  — admin of Engineering
-(1, 2, TRUE),    -- Bob    — admin of Engineering
-(1, 3, FALSE),   -- Charlie
-(1, 4, FALSE),   -- Diana
-(1, 5, FALSE),   -- Eve
-(2, 2, TRUE),    -- Bob    — admin of Design
-(2, 4, TRUE),    -- Diana  — admin of Design
-(2, 5, FALSE),   -- Eve
-(2, 6, FALSE);   -- Frank
+INSERT INTO Workspace_Members (workspace_id, user_id, is_admin, joined_at) VALUES
+(1, 1, TRUE,  NOW() - INTERVAL '15 days'),   -- Alice  — admin of Engineering (creator, joined at ws creation)
+(1, 2, TRUE,  NOW() - INTERVAL '15 days'),   -- Bob    — admin of Engineering (joined at ws creation)
+(1, 3, FALSE, NOW() - INTERVAL '14 days'),   -- Charlie (joined next day)
+(1, 4, FALSE, NOW() - INTERVAL '13 days'),   -- Diana
+(1, 5, FALSE, NOW() - INTERVAL '12 days'),   -- Eve
+(2, 2, TRUE,  NOW() - INTERVAL '14 days'),   -- Bob    — admin of Design (creator, joined at ws creation)
+(2, 4, TRUE,  NOW() - INTERVAL '14 days'),   -- Diana  — admin of Design (joined at ws creation)
+(2, 5, FALSE, NOW() - INTERVAL '11 days'),   -- Eve
+(2, 6, FALSE, NOW() - INTERVAL '9 days');    -- Frank
 
 
 -- =============================================
@@ -64,40 +64,40 @@ INSERT INTO Channels (workspace_id, name, channel_type, created_by, created_at) 
 -- =============================================
 -- CHANNEL MEMBERS
 -- =============================================
-INSERT INTO Channel_Members (channel_id, user_id, is_admin) VALUES
--- Ch 1 (general, public, ws1)
-(1, 1, TRUE),    -- Alice (admin)
-(1, 2, FALSE),   -- Bob
-(1, 3, FALSE),   -- Charlie
-(1, 4, FALSE),   -- Diana
+INSERT INTO Channel_Members (channel_id, user_id, is_admin, joined_at) VALUES
+-- Ch 1 (general, public, ws1) — created 15 days ago by Alice
+(1, 1, TRUE,  NOW() - INTERVAL '15 days'),   -- Alice (admin, creator)
+(1, 2, FALSE, NOW() - INTERVAL '15 days'),   -- Bob (joined at channel creation)
+(1, 3, FALSE, NOW() - INTERVAL '14 days'),   -- Charlie
+(1, 4, FALSE, NOW() - INTERVAL '13 days'),   -- Diana
 
--- Ch 2 (backend, public, ws1)
-(2, 1, TRUE),    -- Alice (admin)
-(2, 2, FALSE),   -- Bob
-(2, 3, FALSE),   -- Charlie
-(2, 5, FALSE),   -- Eve
+-- Ch 2 (backend, public, ws1) — created 13 days ago by Bob
+(2, 1, TRUE,  NOW() - INTERVAL '13 days'),   -- Alice (admin)
+(2, 2, FALSE, NOW() - INTERVAL '13 days'),   -- Bob (creator)
+(2, 3, FALSE, NOW() - INTERVAL '12 days'),   -- Charlie
+(2, 5, FALSE, NOW() - INTERVAL '11 days'),   -- Eve
 
--- Ch 3 (secret-project, private, ws1)
-(3, 1, TRUE),    -- Alice (admin)
-(3, 3, FALSE),   -- Charlie
+-- Ch 3 (secret-project, private, ws1) — created 10 days ago by Alice
+(3, 1, TRUE,  NOW() - INTERVAL '10 days'),   -- Alice (admin, creator)
+(3, 3, FALSE, NOW() - INTERVAL '9 days'),    -- Charlie
 
--- Ch 4 (alice-charlie DM, ws1)
-(4, 1, FALSE),   -- Alice
-(4, 3, FALSE),   -- Charlie
+-- Ch 4 (alice-charlie DM, ws1) — created 8 days ago by Alice
+(4, 1, FALSE, NOW() - INTERVAL '8 days'),    -- Alice
+(4, 3, FALSE, NOW() - INTERVAL '8 days'),    -- Charlie
 
--- Ch 5 (design-general, public, ws2)
-(5, 2, TRUE),    -- Bob (admin)
-(5, 4, FALSE),   -- Diana
-(5, 5, FALSE),   -- Eve
-(5, 6, FALSE),   -- Frank
+-- Ch 5 (design-general, public, ws2) — created 14 days ago by Bob
+(5, 2, TRUE,  NOW() - INTERVAL '14 days'),   -- Bob (admin, creator)
+(5, 4, FALSE, NOW() - INTERVAL '14 days'),   -- Diana
+(5, 5, FALSE, NOW() - INTERVAL '11 days'),   -- Eve
+(5, 6, FALSE, NOW() - INTERVAL '9 days'),    -- Frank
 
--- Ch 6 (ui-review, public, ws2)
-(6, 2, FALSE),   -- Bob
-(6, 4, TRUE),    -- Diana (admin)
+-- Ch 6 (ui-review, public, ws2) — created 12 days ago by Diana
+(6, 2, FALSE, NOW() - INTERVAL '12 days'),   -- Bob
+(6, 4, TRUE,  NOW() - INTERVAL '12 days'),   -- Diana (admin, creator)
 
--- Ch 7 (bob-diana DM, ws2)
-(7, 2, FALSE),   -- Bob
-(7, 4, FALSE);   -- Diana
+-- Ch 7 (bob-diana DM, ws2) — created 9 days ago by Bob
+(7, 2, FALSE, NOW() - INTERVAL '9 days'),    -- Bob
+(7, 4, FALSE, NOW() - INTERVAL '9 days');    -- Diana
 
 
 -- =============================================
