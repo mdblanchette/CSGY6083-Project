@@ -14,14 +14,16 @@ CREATE TABLE Users (
 	email		VARCHAR(255) NOT NULL UNIQUE,
 	username	VARCHAR(50)  NOT NULL UNIQUE,
 	nickname	VARCHAR(50),
-	password_hash	VARCHAR(255) NOT NULL
+	password_hash	VARCHAR(255) NOT NULL,
+	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE Workspaces (
 	workspace_id	SERIAL PRIMARY KEY,
 	name		VARCHAR(100) NOT NULL,
 	description	VARCHAR(500),
-	created_by	INT REFERENCES Users(user_id) ON DELETE SET NULL
+	created_by	INT REFERENCES Users(user_id) ON DELETE SET NULL,
+	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE Workspace_Members (
@@ -36,6 +38,7 @@ CREATE TABLE Workspace_Invitations (
 	workspace_id	INT NOT NULL REFERENCES Workspaces(workspace_id) ON DELETE CASCADE,
 	inviter		INT NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
 	invitee		INT NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
+	invited_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	status		VARCHAR(10) NOT NULL DEFAULT 'pending'
 			CHECK (status IN ('pending', 'accepted', 'declined'))
 );
@@ -46,6 +49,7 @@ CREATE TABLE Channels (
 	name		VARCHAR(100) NOT NULL,
 	channel_type	VARCHAR(10) NOT NULL CHECK (channel_type IN ('public', 'private', 'direct')),
 	created_by	INT REFERENCES Users(user_id) ON DELETE SET NULL,
+	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (workspace_id, name)
 );
 
