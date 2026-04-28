@@ -1,4 +1,3 @@
--- This is based on the data from the insert_data.sql file
 -- Alice has multiple messages with the keyword 'perpendicular' in the message body
 SELECT m.message_id, c.name AS channel_name, w.name AS workspace_name, u.username AS sender, m.body, m.posted_at
 FROM Messages m
