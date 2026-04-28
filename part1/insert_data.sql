@@ -2,22 +2,22 @@
 -- USERS (6 users)
 -- =============================================
 -- Password hashes are bcrypt placeholders
-INSERT INTO Users (email, username, nickname, password_hash) VALUES
-('alice@example.com',   'alice',   'Ali',     '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'),
-('bob@example.com',     'bob',     'Bobby',   '$2b$12$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'),
-('charlie@example.com', 'charlie', 'Chuck',   '$2b$12$CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'),
-('diana@example.com',   'diana',   'Di',      '$2b$12$DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD'),
-('eve@example.com',     'eve',     'Evie',    '$2b$12$EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'),
-('frank@example.com',   'frank',   'Frankie', '$2b$12$FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF');
+INSERT INTO Users (email, username, nickname, password_hash, created_at) VALUES
+('alice@example.com',   'alice',   'Ali',     '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', NOW() - INTERVAL '30 days'),
+('bob@example.com',     'bob',     'Bobby',   '$2b$12$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', NOW() - INTERVAL '30 days'),
+('charlie@example.com', 'charlie', 'Chuck',   '$2b$12$CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC', NOW() - INTERVAL '28 days'),
+('diana@example.com',   'diana',   'Di',      '$2b$12$DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD', NOW() - INTERVAL '28 days'),
+('eve@example.com',     'eve',     'Evie',    '$2b$12$EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE', NOW() - INTERVAL '25 days'),
+('frank@example.com',   'frank',   'Frankie', '$2b$12$FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF', NOW() - INTERVAL '20 days');
 -- user_ids: alice=1, bob=2, charlie=3, diana=4, eve=5, frank=6
 
 
 -- =============================================
 -- WORKSPACES (2)
 -- =============================================
-INSERT INTO Workspaces (name, description, created_by) VALUES
-('Engineering Team', 'Workspace for the engineering department', 1),   -- ws 1, by Alice
-('Design Team',      'Workspace for the design department',      2);   -- ws 2, by Bob
+INSERT INTO Workspaces (name, description, created_by, created_at) VALUES
+('Engineering Team', 'Workspace for the engineering department', 1, NOW() - INTERVAL '15 days'),   -- ws 1, by Alice
+('Design Team',      'Workspace for the design department',      2, NOW() - INTERVAL '14 days');   -- ws 2, by Bob
 
 
 -- =============================================
@@ -43,22 +43,22 @@ INSERT INTO Workspace_Members (workspace_id, user_id, is_admin) VALUES
 -- =============================================
 -- WORKSPACE INVITATIONS (for general completeness)
 -- =============================================
-INSERT INTO Workspace_Invitations (workspace_id, inviter, invitee, status) VALUES
-(2, 2, 1, 'pending'),    -- Bob invited Alice to Design, still pending
-(1, 1, 6, 'declined');   -- Alice invited Frank to Engineering, declined
+INSERT INTO Workspace_Invitations (workspace_id, inviter, invitee, status, invited_at) VALUES
+(2, 2, 1, 'pending',  NOW() - INTERVAL '10 days'),   -- Bob invited Alice to Design, still pending
+(1, 1, 6, 'declined', NOW() - INTERVAL '12 days');   -- Alice invited Frank to Engineering, declined
 
 
 -- =============================================
 -- CHANNELS (7 channels across 2 workspaces)
 -- =============================================
-INSERT INTO Channels (workspace_id, name, channel_type, created_by) VALUES
-(1, 'general',        'public',  1),   -- ch 1
-(1, 'backend',        'public',  2),   -- ch 2
-(1, 'secret-project', 'private', 1),   -- ch 3
-(1, 'alice-charlie',  'direct',  1),   -- ch 4
-(2, 'design-general', 'public',  2),   -- ch 5
-(2, 'ui-review',      'public',  4),   -- ch 6
-(2, 'bob-diana',      'direct',  2);   -- ch 7
+INSERT INTO Channels (workspace_id, name, channel_type, created_by, created_at) VALUES
+(1, 'general',        'public',  1, NOW() - INTERVAL '15 days'),   -- ch 1, same day as ws1
+(1, 'backend',        'public',  2, NOW() - INTERVAL '13 days'),   -- ch 2
+(1, 'secret-project', 'private', 1, NOW() - INTERVAL '10 days'),   -- ch 3
+(1, 'alice-charlie',  'direct',  1, NOW() - INTERVAL '8 days'),    -- ch 4
+(2, 'design-general', 'public',  2, NOW() - INTERVAL '14 days'),   -- ch 5, same day as ws2
+(2, 'ui-review',      'public',  4, NOW() - INTERVAL '12 days'),   -- ch 6
+(2, 'bob-diana',      'direct',  2, NOW() - INTERVAL '9 days');    -- ch 7
 
 
 -- =============================================
