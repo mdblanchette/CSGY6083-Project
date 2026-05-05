@@ -11,3 +11,6 @@ If PostgreSQL was installed via the standard installer, might need to do this in
 createdb -U postgres snickrdb
 
 psql -U postgres snickrdb < create_tables.sql
+
+# 3. Run
+python3 app.py
