@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{% block title %}Snickr{% endblock %}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100 min-h-screen">
+        <nav
+            class="bg-indigo-600 text-white px-6 py-3 flex justify-between items-center"
+        >
+            <a href="/" class="text-xl font-bold">Snickr</a>
+            {% if session.get("user_id") %}
+            <div class="flex items-center gap-4">
+                <span class="text-sm">{{ session.get("username") }}</span>
+                <a href="/logout" class="text-sm underline">Logout</a>
+            </div>
+            {% endif %}
+        </nav>
+        <main class="max-w-4xl mx-auto mt-8 px-4">
+            {% with messages = get_flashed_messages() %} {% if messages %} {%
+            for message in messages %}
+            <div
+                class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded mb-4"
+            >
+                {{ message }}
+            </div>
+            {% endfor %} {% endif %} {% endwith %} {% block content %}{%
+            endblock %}
+        </main>
+    </body>
+</html>
