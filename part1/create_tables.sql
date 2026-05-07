@@ -15,6 +15,11 @@ CREATE TABLE Users (
 	username	VARCHAR(50)  NOT NULL UNIQUE,
 	nickname	VARCHAR(50),
 	password_hash	VARCHAR(255) NOT NULL,
+	status_text	VARCHAR(100) DEFAULT '',
+	status_emoji	VARCHAR(10)  DEFAULT '',
+	bio		VARCHAR(500) DEFAULT '',
+	last_active	TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	timezone	VARCHAR(50)  DEFAULT '',
 	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,6 +56,7 @@ CREATE TABLE Channels (
 	channel_type	VARCHAR(10) NOT NULL CHECK (channel_type IN ('public', 'private', 'direct')),
 	created_by	INT REFERENCES Users(user_id) ON DELETE SET NULL,
 	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	description VARCHAR(500),
 	UNIQUE (workspace_id, name)
 );
 
