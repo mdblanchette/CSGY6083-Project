@@ -8,6 +8,11 @@ const WorkspaceDropdown = () => {
     useWorkspace();
   const [open, setOpen] = useState(false);
 
+  const handleWorkspaceSelect = (workspaceId: number) => {
+    selectWorkspace(workspaceId);
+    setOpen(false);
+  };
+
   return (
     <div className="border-b border-stroke px-4 py-3 dark:border-stroke-dark">
       <ClickOutside onClick={() => setOpen(false)}>
@@ -48,10 +53,7 @@ const WorkspaceDropdown = () => {
                         <li key={workspace.id}>
                           <button
                             type="button"
-                            onClick={() => {
-                              selectWorkspace(workspace.id);
-                              setOpen(false);
-                            }}
+                            onClick={() => handleWorkspaceSelect(workspace.id)}
                             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${
                               isActive
                                 ? "bg-primary/10 text-primary"
