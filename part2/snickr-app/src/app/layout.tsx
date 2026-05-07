@@ -8,6 +8,7 @@ import "@/css/simple-datatables.css";
 import "@/css/style.css";
 import React, { useEffect, useState } from "react";
 import Loader from "@/components/common/Loader";
+import ToastContext from "./context/ToastContext";
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning={true}>
+        <ToastContext />
         {loading ? <Loader /> : children}
       </body>
     </html>

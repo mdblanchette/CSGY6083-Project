@@ -4,6 +4,7 @@ import React from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import SidebarItem from "@/components/Sidebar/SidebarItem";
+import WorkspaceDropdown from "@/components/Sidebar/WorkspaceDropdown";
 import ClickOutside from "@/components/ClickOutside";
 import useLocalStorage from "@/hooks/useLocalStorage";
 
@@ -63,27 +64,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
         </div>
         {/* <!-- SIDEBAR HEADER --> */}
 
-        <div className="border-b border-stroke px-6 py-5 dark:border-stroke-dark">
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-white transition hover:bg-primary/90"
-          >
-            <svg
-              className="fill-current"
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M9.00001 2.0625C9.31067 2.0625 9.56251 2.31434 9.56251 2.625V8.4375H15.375C15.6857 8.4375 15.9375 8.68934 15.9375 9C15.9375 9.31066 15.6857 9.5625 15.375 9.5625H9.56251V15.375C9.56251 15.6857 9.31067 15.9375 9.00001 15.9375C8.68934 15.9375 8.43751 15.6857 8.43751 15.375V9.5625H2.62501C2.31435 9.5625 2.06251 9.31066 2.06251 9C2.06251 8.68934 2.31435 8.4375 2.62501 8.4375H8.43751V2.625C8.43751 2.31434 8.68935 2.0625 9.00001 2.0625Z"
-                fill=""
-              />
-            </svg>
-            Create Workspace
-          </button>
-        </div>
+        {/* Workspace dropdown (shows list + create) */}
+        <WorkspaceDropdown />
 
         <div className="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear">
           {/* <!-- MENU GROUPS --> */}

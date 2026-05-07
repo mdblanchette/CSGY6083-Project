@@ -6,14 +6,14 @@ import { signIn } from "next-auth/react";
 
 const SignupWithPassword = () => {
   const [data, setData] = useState({
-    name: "",
+    username: "",
     email: "",
     password: "",
     reEnterPassword: "",
   });
 
   const [loading, setLoading] = useState(false);
-  const { name, email, password, reEnterPassword } = data;
+  const { username, email, password, reEnterPassword } = data;
 
   const router = useRouter();
 
@@ -27,15 +27,19 @@ const SignupWithPassword = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim() || !email || !password || !reEnterPassword) {
+    if (!username.trim() || !email || !password || !reEnterPassword) {
       return toast.error("Please fill in all fields!");
+    }
+
+    if (password !== reEnterPassword) {
+      return toast.error("Passwords do not match.");
     }
 
     setLoading(true);
 
     try {
       const res = await axios.post("/api/user/register", {
-        name,
+        username,
         email,
         password,
         reEnterPassword,
@@ -44,13 +48,17 @@ const SignupWithPassword = () => {
       if (res.status === 200) {
         toast.success("User has been registered");
         setData({
-          name: "",
+          username: "",
           email: "",
           password: "",
           reEnterPassword: "",
         });
         setLoading(false);
-        signIn("credentials", { ...data, redirect: false }).then((callback) => {
+        signIn("credentials", {
+          identifier: email,
+          password,
+          redirect: false,
+        }).then((callback) => {
           if (callback?.error) {
             toast.error(callback.error);
             setLoading(false);
@@ -76,17 +84,17 @@ const SignupWithPassword = () => {
     <form onSubmit={handleSubmit}>
       <div className="mb-4">
         <label
-          htmlFor="name"
+          htmlFor="username"
           className="mb-2.5 block font-medium text-dark dark:text-white"
         >
-          Name
+          Username
         </label>
         <div className="relative">
           <input
             type="text"
-            placeholder="Enter your full name"
-            value={name}
-            name="name"
+            placeholder="Enter your username"
+            value={username}
+            name="username"
             onChange={handleChange ? (e) => handleChange(e) : undefined}
             className="w-full rounded-lg border border-stroke bg-transparent py-[15px] pl-6 pr-11 font-medium text-dark outline-none focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
           />

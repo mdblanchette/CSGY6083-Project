@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import ClickOutside from "@/components/ClickOutside";
 import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
@@ -15,11 +14,12 @@ const DropdownUser = () => {
     setDropdownOpen(false);
   };
 
-  const profilePic = session?.user?.image
-    ? session?.user?.image.includes("http")
-      ? session?.user?.image
-      : `${process.env.NEXT_PUBLIC_IMAGE_URL}/${session?.user?.image}`
-    : "/images/user/user-03.png";
+  const displayName =
+    session?.user?.username ||
+    session?.user?.name ||
+    session?.user?.email ||
+    "Jhon Smith";
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
@@ -28,23 +28,13 @@ const DropdownUser = () => {
         className="flex items-center gap-4"
         href="#"
       >
-        <span className="h-12 w-12 rounded-full">
-          <Image
-            width={112}
-            height={112}
-            src={profilePic}
-            style={{
-              width: "auto",
-              height: "auto",
-            }}
-            alt="User"
-            className="overflow-hidden rounded-full"
-          />
+        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
+          {initial}
         </span>
 
         <span className="flex items-center gap-2 font-medium text-dark dark:text-dark-6">
           <span className="hidden lg:block">
-            {session?.user?.name || "Jhon Smith"}
+            {session?.user?.username || session?.user?.name || "Jhon Smith"}
           </span>
 
           <svg
@@ -72,24 +62,16 @@ const DropdownUser = () => {
         >
           <div className="flex items-center gap-2.5 px-5 pb-5.5 pt-3.5">
             <span className="relative block h-12 w-12 rounded-full">
-              <Image
-                width={112}
-                height={112}
-                src={profilePic}
-                style={{
-                  width: "auto",
-                  height: "auto",
-                }}
-                alt="User"
-                className="overflow-hidden rounded-full"
-              />
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
+                {initial}
+              </span>
 
               <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green dark:border-gray-dark"></span>
             </span>
 
             <span className="block">
               <span className="block font-medium text-dark dark:text-white">
-                {session?.user?.name || "Jhon Smith"}
+                {session?.user?.username || session?.user?.name || "Jhon Smith"}
               </span>
               <span className="block font-medium text-dark-5 dark:text-dark-6">
                 {session?.user?.email || "jonson@nextadmin.com"}

@@ -12,7 +12,7 @@ export async function getUsers(filter: any) {
   });
 
   const filtredUsers = res.filter(
-    (user) =>
+    (user: any) =>
       user.email !== currentUser?.email && !user.email?.includes("demo-"),
   );
 

@@ -1,74 +1,119 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-datasource db {
-  provider          = "postgresql"
-  url               = env("DATABASE_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model channel_invitations {
+  invitation_id                            Int      @id @default(autoincrement())
+  channel_id                               Int
+  inviter                                  Int
+  invitee                                  Int
+  invited_at                               DateTime @default(now()) @db.Timestamp(6)
+  status                                   String   @default("pending") @db.VarChar(10)
+  channels                                 channels @relation(fields: [channel_id], references: [channel_id], onDelete: Cascade, onUpdate: NoAction)
+  users_channel_invitations_inviteeTousers users    @relation("channel_invitations_inviteeTousers", fields: [invitee], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  users_channel_invitations_inviterTousers users    @relation("channel_invitations_inviterTousers", fields: [inviter], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
-model ApiKey {
-  id        String   @id @default(cuid())
-  key       String
-  name      String   @unique
-  userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model channel_members {
+  channel_id Int
+  user_id    Int
+  is_admin   Boolean  @default(false)
+  joined_at  DateTime @default(now()) @db.Timestamp(6)
+  channels   channels @relation(fields: [channel_id], references: [channel_id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([channel_id, user_id])
 }
 
-model User {
-  id                     String    @id @default(cuid())
-  name                   String?
-  email                  String?   @unique
-  emailVerified          DateTime?
-  image                  String?
-  coverImage             String?
-  password               String?
-  passwordResetToken     String?   @unique
-  passwordResetTokenExp  DateTime?
-  role                   String?   @default("USER")
-  createdAt              DateTime  @default(now())
-  accounts               Account[]
-  sessions               Session[]
-  apiKeys                ApiKey[]
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model channels {
+  channel_id          Int                   @id @default(autoincrement())
+  workspace_id        Int
+  name                String                @db.VarChar(100)
+  channel_type        String                @db.VarChar(10)
+  created_by          Int?
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  description         String?               @db.VarChar(500)
+  channel_invitations channel_invitations[]
+  channel_members     channel_members[]
+  users               users?                @relation(fields: [created_by], references: [user_id], onUpdate: NoAction)
+  workspaces          workspaces            @relation(fields: [workspace_id], references: [workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  messages            messages[]
+
+  @@unique([workspace_id, name])
 }
 
-model VerificationToken {
-  id         String   @id @default(cuid())
-  identifier String
-  token      String   @unique
-  expires    DateTime
+model messages {
+  message_id Int      @id @default(autoincrement())
+  channel_id Int
+  sender_id  Int?
+  body       String
+  posted_at  DateTime @default(now()) @db.Timestamp(6)
+  channels   channels @relation(fields: [channel_id], references: [channel_id], onDelete: Cascade, onUpdate: NoAction)
+  users      users?   @relation(fields: [sender_id], references: [user_id], onUpdate: NoAction)
+}
 
-  @@unique([identifier, token])
+model users {
+  user_id                                                    Int                     @id @default(autoincrement())
+  email                                                      String                  @unique @db.VarChar(255)
+  username                                                   String                  @unique @db.VarChar(50)
+  nickname                                                   String?                 @db.VarChar(50)
+  password_hash                                              String                  @db.VarChar(255)
+  status_text                                                String?                 @default("") @db.VarChar(100)
+  status_emoji                                               String?                 @default("") @db.VarChar(10)
+  bio                                                        String?                 @default("") @db.VarChar(500)
+  last_active                                                DateTime?               @default(now()) @db.Timestamp(6)
+  timezone                                                   String?                 @default("") @db.VarChar(50)
+  created_at                                                 DateTime                @default(now()) @db.Timestamp(6)
+  channel_invitations_channel_invitations_inviteeTousers     channel_invitations[]   @relation("channel_invitations_inviteeTousers")
+  channel_invitations_channel_invitations_inviterTousers     channel_invitations[]   @relation("channel_invitations_inviterTousers")
+  channel_members                                            channel_members[]
+  channels                                                   channels[]
+  messages                                                   messages[]
+  workspace_invitations_workspace_invitations_inviteeTousers workspace_invitations[] @relation("workspace_invitations_inviteeTousers")
+  workspace_invitations_workspace_invitations_inviterTousers workspace_invitations[] @relation("workspace_invitations_inviterTousers")
+  workspace_members                                          workspace_members[]
+  workspaces                                                 workspaces[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model workspace_invitations {
+  invitation_id                              Int        @id @default(autoincrement())
+  workspace_id                               Int
+  inviter                                    Int
+  invitee                                    Int
+  invited_at                                 DateTime   @default(now()) @db.Timestamp(6)
+  status                                     String     @default("pending") @db.VarChar(10)
+  users_workspace_invitations_inviteeTousers users      @relation("workspace_invitations_inviteeTousers", fields: [invitee], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  users_workspace_invitations_inviterTousers users      @relation("workspace_invitations_inviterTousers", fields: [inviter], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces                                 workspaces @relation(fields: [workspace_id], references: [workspace_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model workspace_members {
+  workspace_id Int
+  user_id      Int
+  is_admin     Boolean    @default(false)
+  joined_at    DateTime   @default(now()) @db.Timestamp(6)
+  users        users      @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces   workspaces @relation(fields: [workspace_id], references: [workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([workspace_id, user_id])
+}
+
+model workspaces {
+  workspace_id          Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(100)
+  description           String?                 @db.VarChar(500)
+  created_by            Int?
+  created_at            DateTime                @default(now()) @db.Timestamp(6)
+  channels              channels[]
+  workspace_invitations workspace_invitations[]
+  workspace_members     workspace_members[]
+  users                 users?                  @relation(fields: [created_by], references: [user_id], onUpdate: NoAction)
 }

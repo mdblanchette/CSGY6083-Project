@@ -1,17 +1,18 @@
-import { prisma } from "@/libs/prismaDb";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { query } from "@/libs/db";
 import { type NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GitHubProvider from "next-auth/providers/github";
-import GoogleProvider from "next-auth/providers/google";
-import EmailProvider from "next-auth/providers/email";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcrypt";
-import { User } from "@prisma/client";
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
-    user: User & DefaultSession["user"];
+    user: DefaultSession["user"] & {
+      id: string;
+      username?: string | null;
+      role?: string | null;
+      coverImage?: string | null;
+      image?: string | null;
+    };
   }
 }
 
@@ -19,8 +20,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/auth/signin",
   },
-  adapter: PrismaAdapter(prisma),
-  secret: process.env.SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
@@ -29,70 +29,61 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "text", placeholder: "Jhondoe" },
+        identifier: {
+          label: "Username or Email",
+          type: "text",
+          placeholder: "jane.doe or jane@example.com",
+        },
         password: { label: "Password", type: "password" },
-        username: { label: "Username", type: "text", placeholder: "Jhon Doe" },
       },
 
       async authorize(credentials) {
-        // check to see if eamil and password is there
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Please enter an email or password");
+        if (!credentials?.identifier || !credentials?.password) {
+          throw new Error("Please enter your username/email and password");
         }
 
-        // check to see if user already exist
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        });
+        const result = await query(
+          `
+            SELECT user_id, email, username, password_hash, created_at
+            FROM users
+            WHERE email = $1 OR username = $1
+            LIMIT 1
+          `,
+          [credentials.identifier.toLowerCase()],
+        );
 
-        // if user was not found
-        if (!user || !user?.password) {
-          throw new Error("No user found");
+        const user = result.rows[0];
+
+        if (!user || !user?.password_hash) {
+          throw new Error("No account found for that username/email");
         }
 
-        // check to see if passwords match
         const passwordMatch = await bcrypt.compare(
           credentials.password,
-          user.password,
+          user.password_hash,
         );
 
         if (!passwordMatch) {
           throw new Error("Incorrect password");
         }
 
-        return user;
+        return {
+          id: String(user.user_id),
+          name: user.username,
+          username: user.username,
+          email: user.email,
+          image: null,
+          coverImage: null,
+          role: null,
+        };
       },
-    }),
-
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM,
-    }),
-
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-    }),
-
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
   ],
 
   callbacks: {
     jwt: async (payload: any) => {
       const { token, trigger, session } = payload;
-      const user: User = payload.user;
+      const user: any = payload.user;
 
       if (trigger === "update") {
         // console.log(token.picture, session.user);
@@ -108,7 +99,7 @@ export const authOptions: NextAuthOptions = {
         return {
           ...token,
           uid: user.id,
-          role: user.role,
+          username: user.username || user.name,
           picture: user.image,
           image: user.image,
         };
@@ -116,14 +107,15 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
 
-    session: async ({ session, token }) => {
+    session: async ({ session, token }: any) => {
       if (session?.user) {
         return {
           ...session,
           user: {
             ...session.user,
             id: token.sub,
-            role: token.role,
+            username: (token.username as string) || session.user.name,
+            name: (token.username as string) || session.user.name,
             image: token.picture,
           },
         };

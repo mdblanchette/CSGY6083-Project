@@ -21,7 +21,7 @@ export async function createApiKey(keyName: string) {
     return null;
   }
 
-  const key = user.role as string;
+  const key = user.email || user.id || "api-key";
 
   // Hash the key
   const hashedKey = await bcrypt.hash(key, 10);
