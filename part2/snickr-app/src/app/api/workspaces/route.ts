@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "@/libs/db";
+import { getAuthSession } from "@/libs/auth";
 
 export const runtime = "nodejs";
 
@@ -46,18 +47,38 @@ const selectWorkspaces = async () => {
   }
 };
 
-const insertWorkspace = async (name: string, description: string | null) => {
+const insertWorkspace = async (
+  name: string,
+  description: string | null,
+  createdBy: number | null = null,
+) => {
   try {
     const result = await query(
       `
-        INSERT INTO workspaces (name, description)
-        VALUES ($1, $2)
+        INSERT INTO workspaces (name, description, created_by)
+        VALUES ($1, $2, $3)
         RETURNING workspace_id AS id, name, description, created_at AS "createdAt"
       `,
-      [name, description],
+      [name, description, createdBy],
     );
 
-    return result.rows[0] as WorkspaceRow;
+    const row = result.rows[0] as WorkspaceRow;
+
+    if (createdBy) {
+      try {
+        await query(
+          `
+            INSERT INTO workspace_members (workspace_id, user_id, is_admin)
+            VALUES ($1, $2, true)
+          `,
+          [row.id, createdBy],
+        );
+      } catch (e: any) {
+        // ignore - best effort. fallback handled below if needed
+      }
+    }
+
+    return row;
   } catch (error: any) {
     if (error?.code !== "42P01") {
       throw error;
@@ -65,14 +86,30 @@ const insertWorkspace = async (name: string, description: string | null) => {
 
     const fallback = await query(
       `
-        INSERT INTO "Workspace" (name, description)
-        VALUES ($1, $2)
+        INSERT INTO "Workspaces" (name, description, created_by)
+        VALUES ($1, $2, $3)
         RETURNING workspace_id AS id, name, description, created_at AS "createdAt"
       `,
-      [name, description],
+      [name, description, createdBy],
     );
 
-    return fallback.rows[0] as WorkspaceRow;
+    const row = fallback.rows[0] as WorkspaceRow;
+
+    if (createdBy) {
+      try {
+        await query(
+          `
+            INSERT INTO "Workspace_Members" (workspace_id, user_id, is_admin)
+            VALUES ($1, $2, true)
+          `,
+          [row.id, createdBy],
+        );
+      } catch (e: any) {
+        // ignore fallback insert error
+      }
+    }
+
+    return row;
   }
 };
 
@@ -101,7 +138,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    const workspace = await insertWorkspace(name, description);
+    // try to determine the authenticated user and add them as admin
+    const session = await getAuthSession();
+    const userId = session?.user?.id ? Number(session.user.id) : null;
+
+    const workspace = await insertWorkspace(name, description, userId);
     return NextResponse.json(workspace, { status: 201 });
   } catch {
     return NextResponse.json(

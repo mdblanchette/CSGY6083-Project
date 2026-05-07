@@ -5,65 +5,75 @@ import { authOptions } from "@/libs/auth";
 import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
-	const body = await request.json();
-	const { email, name, image } = body;
+  const body = await request.json();
+  const { email, nickname, username, status_text, bio } = body;
 
-	const session = await getServerSession(authOptions);
-	const updateData: { [key: string]: any } = {};
+  const session = await getServerSession(authOptions);
+  const updateData: { [key: string]: any } = {};
 
-	const isDemo = session?.user?.email?.includes("demo-");
+  const isDemo = session?.user?.email?.includes("demo-");
 
-	if (!session?.user) {
-		return new NextResponse(JSON.stringify("User not found!"), { status: 400 });
-	}
+  if (!session?.user) {
+    return new NextResponse(JSON.stringify("User not found!"), { status: 400 });
+  }
 
-	if (body === null) {
-		return new NextResponse(JSON.stringify("Missing Fields"), { status: 400 });
-	}
+  if (body === null) {
+    return new NextResponse(JSON.stringify("Missing Fields"), { status: 400 });
+  }
 
-	if (name) {
-		updateData.name = name;
-	}
+  if (nickname !== undefined) {
+    updateData.nickname = nickname;
+  }
 
-	if (email) {
-		updateData.email = email.toLowerCase();
-	}
+  if (email) {
+    updateData.email = email.toLowerCase();
+  }
 
-	if (image) {
-		updateData.image = image;
-	}
+  if (username !== undefined) {
+    updateData.username = username;
+  }
 
-	if (isDemo) {
-		return new NextResponse(JSON.stringify("Can't update demo user"), {
-			status: 401,
-		});
-	}
+  if (status_text !== undefined) {
+    updateData.status_text = status_text;
+  }
 
-	try {
-		const user = await prisma.user.update({
-			where: {
-				email: session?.user?.email as string,
-			},
-			data: {
-				...updateData,
-			},
-		});
+  if (bio !== undefined) {
+    updateData.bio = bio;
+  }
 
-		revalidatePath("/user");
+  if (isDemo) {
+    return new NextResponse(JSON.stringify("Can't update demo user"), {
+      status: 401,
+    });
+  }
 
-		return NextResponse.json(
-			{
-				email: user.email,
-				name: user.name,
-				image: user.image,
-			},
-			{ status: 200 }
-		);
+  try {
+    const user = await prisma.user.update({
+      where: {
+        email: session?.user?.email as string,
+      },
+      data: {
+        ...updateData,
+      },
+    });
 
-		// return new NextResponse(JSON.stringify("User Updated Successfully!"), {
-		// 	status: 200,
-		// });
-	} catch (error) {
-		return new NextResponse("Something went wrong", { status: 500 });
-	}
+    revalidatePath("/user");
+
+    return NextResponse.json(
+      {
+        email: user.email,
+        nickname: user.nickname,
+        username: user.username,
+        status_text: user.status_text,
+        bio: user.bio,
+      },
+      { status: 200 },
+    );
+
+    // return new NextResponse(JSON.stringify("User Updated Successfully!"), {
+    // 	status: 200,
+    // });
+  } catch (error) {
+    return new NextResponse("Something went wrong", { status: 500 });
+  }
 }

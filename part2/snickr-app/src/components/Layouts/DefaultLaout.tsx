@@ -3,7 +3,6 @@ import React, { useState, ReactNode } from "react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
-import CreateWorkspaceCard from "@/components/CreateWorkspaceCard";
 
 export default function DefaultLayout({
   children,
@@ -27,10 +26,9 @@ export default function DefaultLayout({
             {/* <!-- ===== Header End ===== --> */}
 
             {/* <!-- ===== Main Content Star ===== --> */}
-            <main>
-              <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
+            <main className="flex-1 overflow-y-auto">
+              <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 p-4 md:p-6 2xl:p-10">
                 {children}
-                <CreateWorkspaceCard />
               </div>
             </main>
             {/* <!-- ===== Main Content End ===== --> */}

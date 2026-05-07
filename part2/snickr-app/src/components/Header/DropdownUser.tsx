@@ -23,17 +23,18 @@ const DropdownUser = () => {
 
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
-      <Link
+      <button
+        type="button"
         onClick={() => setDropdownOpen(!dropdownOpen)}
-        className="flex items-center gap-4"
-        href="#"
+        aria-label="Open user menu"
+        className="flex items-center gap-3 rounded-full py-1 pr-1 text-left"
       >
         <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
           {initial}
         </span>
 
-        <span className="flex items-center gap-2 font-medium text-dark dark:text-dark-6">
-          <span className="hidden lg:block">
+        <span className="hidden items-center gap-2 font-medium text-dark dark:text-dark-6 lg:flex">
+          <span>
             {session?.user?.username || session?.user?.name || "Jhon Smith"}
           </span>
 
@@ -53,7 +54,7 @@ const DropdownUser = () => {
             />
           </svg>
         </span>
-      </Link>
+      </button>
 
       {/* <!-- Dropdown Star --> */}
       {dropdownOpen && (

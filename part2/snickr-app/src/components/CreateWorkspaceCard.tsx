@@ -3,7 +3,12 @@ import React, { useState } from "react";
 import { useWorkspace } from "@/context/WorkspaceContext";
 
 const CreateWorkspaceCard = () => {
-  const { showCreateCard, closeCreateCard } = useWorkspace();
+  const {
+    showCreateCard,
+    closeCreateCard,
+    refreshWorkspaces,
+    selectWorkspace,
+  } = useWorkspace();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,8 +25,14 @@ const CreateWorkspaceCard = () => {
         body: JSON.stringify({ name, description }),
       });
       if (res.ok) {
-        // reload to pick up new workspace; in a real app, you'd update state instead
-        window.location.reload();
+        const workspace = await res.json();
+        setName("");
+        setDescription("");
+        closeCreateCard();
+        await refreshWorkspaces();
+        if (workspace?.id) {
+          selectWorkspace(workspace.id);
+        }
       } else {
         console.error("Create failed");
       }
@@ -33,50 +44,59 @@ const CreateWorkspaceCard = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
-      <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-lg">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Create Workspace</h3>
-          <button onClick={closeCreateCard} className="text-muted">
-            Close
+    <section className="w-full rounded-2xl border border-stroke bg-white p-5 shadow-sm dark:border-stroke-dark dark:bg-gray-dark md:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-primary">Workspace setup</p>
+          <h3 className="mt-1 text-xl font-semibold text-dark dark:text-white">
+            Create Workspace
+          </h3>
+        </div>
+
+        <button
+          onClick={closeCreateCard}
+          className="rounded-full border border-stroke px-3 py-1.5 text-sm font-medium text-dark-4 transition hover:border-primary hover:text-primary dark:border-stroke-dark dark:text-dark-6"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="space-y-2 md:col-span-1">
+          <label className="block text-sm font-medium text-dark dark:text-white">
+            Workspace Name
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-xl border border-stroke bg-transparent px-4 py-3 outline-none transition placeholder:text-dark-4 focus:border-primary dark:border-stroke-dark dark:text-white"
+            placeholder="Product launch"
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <label className="block text-sm font-medium text-dark dark:text-white">
+            Description (optional)
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="min-h-28 w-full rounded-xl border border-stroke bg-transparent px-4 py-3 outline-none transition placeholder:text-dark-4 focus:border-primary dark:border-stroke-dark dark:text-white"
+            placeholder="What will this workspace be used for?"
+          />
+        </div>
+
+        <div className="flex justify-end md:col-span-2">
+          <button
+            onClick={create}
+            disabled={loading}
+            className="rounded-xl bg-primary px-5 py-3 font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? "Creating..." : "Create Workspace"}
           </button>
         </div>
-
-        <div className="mt-4 space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              Workspace Name
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              Description (optional)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded border px-3 py-2"
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              onClick={create}
-              disabled={loading}
-              className="rounded bg-primary px-4 py-2 text-white"
-            >
-              {loading ? "Creating..." : "Create"}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </section>
   );
 };
 

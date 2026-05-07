@@ -9,9 +9,9 @@ declare module "next-auth" {
     user: DefaultSession["user"] & {
       id: string;
       username?: string | null;
-      role?: string | null;
-      coverImage?: string | null;
-      image?: string | null;
+      nickname?: string | null;
+      status_text?: string | null;
+      bio?: string | null;
     };
   }
 }
@@ -109,13 +109,40 @@ export const authOptions: NextAuthOptions = {
 
     session: async ({ session, token }: any) => {
       if (session?.user) {
+        const userId = token.sub;
+        let dbUser = null;
+
+        if (userId) {
+          const result = await query(
+            `
+              SELECT user_id, email, username, nickname, status_text, bio
+              FROM users
+              WHERE user_id = $1
+              LIMIT 1
+            `,
+            [userId],
+          );
+
+          dbUser = result.rows[0];
+        }
+
         return {
           ...session,
           user: {
             ...session.user,
             id: token.sub,
-            username: (token.username as string) || session.user.name,
-            name: (token.username as string) || session.user.name,
+            email: dbUser?.email || session.user.email,
+            username:
+              (dbUser?.username as string) ||
+              (token.username as string) ||
+              session.user.name,
+            name:
+              (dbUser?.username as string) ||
+              (token.username as string) ||
+              session.user.name,
+            nickname: dbUser?.nickname || null,
+            status_text: dbUser?.status_text || null,
+            bio: dbUser?.bio || null,
             image: token.picture,
           },
         };
