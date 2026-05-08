@@ -49,6 +49,20 @@ type ChannelDetail = {
   }>;
 };
 
+type ChannelMessageResponse = {
+  message: {
+    id: number;
+    body: string;
+    postedAt: string;
+    senderName: string | null;
+    senderEmail: string | null;
+  };
+  channel: {
+    id: number;
+    memberCount: number;
+  };
+};
+
 const WorkspaceDashboard = () => {
   const { activeWorkspaceId, openCreateCard, showCreateCard } = useWorkspace();
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
@@ -62,6 +76,24 @@ const WorkspaceDashboard = () => {
     null,
   );
   const [channelLoading, setChannelLoading] = useState(false);
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSubmitting, setMessageSubmitting] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+
+  const getMessageDisplayName = (message: {
+    senderName: string | null;
+    senderEmail: string | null;
+  }) => {
+    return message.senderName || message.senderEmail || "System";
+  };
+
+  const getMessageInitial = (message: {
+    senderName: string | null;
+    senderEmail: string | null;
+  }) => {
+    const displayName = getMessageDisplayName(message);
+    return displayName.charAt(0).toUpperCase();
+  };
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -118,6 +150,8 @@ const WorkspaceDashboard = () => {
   const loadChannelDetail = async (channelId: number) => {
     setSelectedChannelId(channelId);
     setChannelLoading(true);
+    setMessageBody("");
+    setMessageError(null);
     try {
       const response = await fetch(
         `/api/channels/${channelId}?workspaceId=${activeWorkspaceId}`,
@@ -141,6 +175,84 @@ const WorkspaceDashboard = () => {
   const closeChannelDetail = () => {
     setSelectedChannelId(null);
     setChannelDetail(null);
+    setMessageBody("");
+    setMessageError(null);
+  };
+
+  const submitMessage = async () => {
+    if (!selectedChannelId || !channelDetail) {
+      return;
+    }
+
+    const trimmedBody = messageBody.trim();
+    if (!trimmedBody) {
+      setMessageError("Message cannot be empty.");
+      return;
+    }
+
+    setMessageSubmitting(true);
+    setMessageError(null);
+
+    try {
+      const response = await fetch(`/api/channels/${selectedChannelId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ body: trimmedBody }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        const message =
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Failed to send message.";
+        throw new Error(message);
+      }
+
+      const data = payload as ChannelMessageResponse;
+
+      setChannelDetail((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          channel: {
+            ...prev.channel,
+            memberCount: data.channel.memberCount,
+            messageCount: prev.channel.messageCount + 1,
+          },
+          messages: [...prev.messages, data.message],
+        };
+      });
+
+      setSummary((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          channels: prev.channels.map((channel) =>
+            channel.id === data.channel.id
+              ? {
+                  ...channel,
+                  memberCount: data.channel.memberCount,
+                  messageCount: channel.messageCount + 1,
+                }
+              : channel,
+          ),
+        };
+      });
+
+      setMessageBody("");
+    } catch (error) {
+      setMessageError(
+        error instanceof Error ? error.message : "Failed to send message.",
+      );
+    } finally {
+      setMessageSubmitting(false);
+    }
   };
 
   if (!activeWorkspaceId) {
@@ -300,22 +412,27 @@ const WorkspaceDashboard = () => {
           <h3 className="text-lg font-semibold text-dark dark:text-white">
             Messages
           </h3>
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 max-h-[30vh] space-y-4 overflow-y-auto pr-2">
             {channelDetail.messages.length > 0 ? (
               channelDetail.messages.map((message) => (
                 <div
                   key={message.id}
                   className="border-b border-stroke pb-4 dark:border-stroke-dark"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-dark dark:text-white">
-                      {message.senderName || message.senderEmail}
-                    </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-base font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
+                        {getMessageInitial(message)}
+                      </span>
+                      <p className="truncate font-medium text-dark dark:text-white">
+                        {getMessageDisplayName(message)}
+                      </p>
+                    </div>
                     <p className="text-xs text-dark-4 dark:text-dark-6">
                       {new Date(message.postedAt).toLocaleString()}
                     </p>
                   </div>
-                  <p className="mt-2 text-dark-4 dark:text-dark-6">
+                  <p className="mt-2 whitespace-pre-wrap break-words text-dark-4 dark:text-dark-6">
                     {message.body}
                   </p>
                 </div>
@@ -325,6 +442,57 @@ const WorkspaceDashboard = () => {
                 No messages yet.
               </p>
             )}
+          </div>
+
+          <div className="mt-6 border-t border-stroke pt-5 dark:border-stroke-dark">
+            <label
+              htmlFor="channel-message-body"
+              className="text-sm font-medium text-dark dark:text-white"
+            >
+              Send a message
+            </label>
+            <textarea
+              id="channel-message-body"
+              value={messageBody}
+              onChange={(event) => {
+                setMessageBody(event.target.value);
+                if (messageError) {
+                  setMessageError(null);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") {
+                  return;
+                }
+
+                if (event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+
+                event.preventDefault();
+                if (!messageSubmitting && messageBody.trim().length > 0) {
+                  void submitMessage();
+                }
+              }}
+              placeholder="Write something to the channel..."
+              rows={3}
+              className="mt-2 w-full rounded-xl border border-stroke bg-white px-4 py-3 text-sm text-dark outline-none transition focus:border-primary dark:border-stroke-dark dark:bg-dark-3 dark:text-white"
+            />
+
+            {messageError && (
+              <p className="mt-2 text-sm text-red-500">{messageError}</p>
+            )}
+
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={submitMessage}
+                disabled={messageSubmitting || messageBody.trim().length === 0}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {messageSubmitting ? "Sending..." : "Send"}
+              </button>
+            </div>
           </div>
         </div>
       </section>
