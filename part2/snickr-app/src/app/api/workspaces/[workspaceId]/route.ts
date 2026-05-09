@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { getAuthSession } from "@/libs/auth";
 import { query } from "@/libs/db";
+import { getVisibleWorkspaceChannels } from "@/libs/channel-access";
 
 export const runtime = "nodejs";
 
 type WorkspaceSummary = {
+  currentUserId: number;
   workspace: {
     id: number;
     name: string;
@@ -34,25 +37,26 @@ const parseWorkspaceId = (value: string) => {
   return Number.isFinite(workspaceId) ? workspaceId : null;
 };
 
-const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
-  const tables =
-    schema === "lower"
-      ? {
-          workspaces: "workspaces",
-          channels: "channels",
-          workspaceMembers: "workspace_members",
-          users: "users",
-          channelMembers: "channel_members",
-          messages: "messages",
-        }
-      : {
-          workspaces: '"Workspaces"',
-          channels: '"Channels"',
-          workspaceMembers: '"Workspace_Members"',
-          users: '"Users"',
-          channelMembers: '"Channel_Members"',
-          messages: '"Messages"',
-        };
+const getTables = (schema: "lower" | "upper") => {
+  return schema === "lower"
+    ? {
+        workspaces: "workspaces",
+        workspaceMembers: "workspace_members",
+        users: "users",
+      }
+    : {
+        workspaces: '"Workspaces"',
+        workspaceMembers: '"Workspace_Members"',
+        users: '"Users"',
+      };
+};
+
+const buildSummary = async (
+  workspaceId: number,
+  userId: number,
+  schema: "lower" | "upper",
+) => {
+  const tables = getTables(schema);
 
   const workspaceResult = await query(
     `
@@ -72,29 +76,24 @@ const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
     return null;
   }
 
-  const channelsResult = await query(
+  const memberResult = await query(
     `
-      SELECT
-        c.channel_id AS id,
-        c.name,
-        c.channel_type AS type,
-        c.description,
-        c.created_at AS "createdAt",
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-        ) AS "memberCount",
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.messages} m
-          WHERE m.channel_id = c.channel_id
-        ) AS "messageCount"
-      FROM ${tables.channels} c
-      WHERE c.workspace_id = $1
-      ORDER BY c.created_at ASC
+      SELECT 1
+      FROM ${tables.workspaceMembers}
+      WHERE workspace_id = $1 AND user_id = $2
+      LIMIT 1
     `,
-    [workspaceId],
+    [workspaceId, userId],
+  );
+
+  if (memberResult.rows.length === 0) {
+    return { status: "forbidden" as const };
+  }
+
+  const channelsResult = await getVisibleWorkspaceChannels(
+    workspaceId,
+    userId,
+    schema,
   );
 
   const membersResult = await query(
@@ -116,8 +115,9 @@ const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
   );
 
   return {
+    currentUserId: userId,
     workspace: workspaceResult.rows[0],
-    channels: channelsResult.rows,
+    channels: channelsResult,
     members: membersResult.rows,
   } as WorkspaceSummary;
 };
@@ -137,10 +137,20 @@ export async function GET(
       );
     }
 
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number.parseInt(session.user.id, 10);
+    if (!Number.isFinite(userId)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let summary = null;
 
     try {
-      summary = await buildSummary(workspaceId, "lower");
+      summary = await buildSummary(workspaceId, userId, "lower");
     } catch (error: any) {
       if (error?.code !== "42P01") {
         throw error;
@@ -149,12 +159,19 @@ export async function GET(
 
     if (!summary) {
       try {
-        summary = await buildSummary(workspaceId, "upper");
+        summary = await buildSummary(workspaceId, userId, "upper");
       } catch (error: any) {
         if (error?.code !== "42P01") {
           throw error;
         }
       }
+    }
+
+    if (summary && "status" in summary && summary.status === "forbidden") {
+      return NextResponse.json(
+        { error: "You are not a member of this workspace" },
+        { status: 403 },
+      );
     }
 
     if (!summary) {

@@ -2,6 +2,12 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
+import { getAuthSession } from "@/libs/auth";
+import {
+  addChannelMembership,
+  getVisibleWorkspaceChannels,
+  resolveChannelAccess,
+} from "@/libs/channel-access";
 import { query } from "@/libs/db";
 
 export const metadata: Metadata = {
@@ -52,28 +58,46 @@ const parseId = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const getTables = (schema: "lower" | "upper") => {
+  return schema === "lower"
+    ? {
+        workspaces: "workspaces",
+        channels: "channels",
+        workspaceMembers: "workspace_members",
+        users: "users",
+        channelMembers: "channel_members",
+        messages: "messages",
+      }
+    : {
+        workspaces: '"Workspaces"',
+        channels: '"Channels"',
+        workspaceMembers: '"Workspace_Members"',
+        users: '"Users"',
+        channelMembers: '"Channel_Members"',
+        messages: '"Messages"',
+      };
+};
+
 const buildChannelPageData = async (
   channelId: number,
+  userId: number,
   schema: "lower" | "upper",
 ) => {
-  const tables =
-    schema === "lower"
-      ? {
-          workspaces: "workspaces",
-          channels: "channels",
-          workspaceMembers: "workspace_members",
-          users: "users",
-          channelMembers: "channel_members",
-          messages: "messages",
-        }
-      : {
-          workspaces: '"Workspaces"',
-          channels: '"Channels"',
-          workspaceMembers: '"Workspace_Members"',
-          users: '"Users"',
-          channelMembers: '"Channel_Members"',
-          messages: '"Messages"',
-        };
+  const tables = getTables(schema);
+
+  const access = await resolveChannelAccess(channelId, userId, schema);
+
+  if (!access) {
+    return null;
+  }
+
+  if (!access.canView) {
+    return null;
+  }
+
+  if (access.shouldAutoJoin) {
+    await addChannelMembership(channelId, userId, schema);
+  }
 
   const channelResult = await query(
     `
@@ -127,17 +151,10 @@ const buildChannelPageData = async (
     return null;
   }
 
-  const channelsResult = await query(
-    `
-      SELECT
-        channel_id AS id,
-        name,
-        channel_type AS type
-      FROM ${tables.channels}
-      WHERE workspace_id = $1
-      ORDER BY created_at ASC
-    `,
-    [channel.workspaceId],
+  const channelsResult = await getVisibleWorkspaceChannels(
+    channel.workspaceId,
+    userId,
+    schema,
   );
 
   const membersResult = await query(
@@ -179,7 +196,7 @@ const buildChannelPageData = async (
   return {
     workspace: workspaceResult.rows[0],
     channel,
-    channels: channelsResult.rows,
+    channels: channelsResult,
     members: membersResult.rows,
     messages: messagesResult.rows,
   } as ChannelPageData;
@@ -197,10 +214,20 @@ export default async function ChannelPage({
     notFound();
   }
 
+  const session = await getAuthSession();
+  if (!session?.user?.id) {
+    notFound();
+  }
+
+  const userId = Number.parseInt(session.user.id, 10);
+  if (!Number.isFinite(userId)) {
+    notFound();
+  }
+
   let data: ChannelPageData | null = null;
 
   try {
-    data = await buildChannelPageData(channelId, "lower");
+    data = await buildChannelPageData(channelId, userId, "lower");
   } catch (error: any) {
     if (error?.code !== "42P01") {
       throw error;
@@ -209,7 +236,7 @@ export default async function ChannelPage({
 
   if (!data) {
     try {
-      data = await buildChannelPageData(channelId, "upper");
+      data = await buildChannelPageData(channelId, userId, "upper");
     } catch (error: any) {
       if (error?.code !== "42P01") {
         throw error;
