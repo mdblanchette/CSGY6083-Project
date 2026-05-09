@@ -225,7 +225,6 @@ const ProfileBox = () => {
           )}
 
           <div className="mx-auto max-w-[720px]">
-            <h4 className="font-medium text-dark dark:text-white">Bio</h4>
             <p className="mt-2 text-sm">
               {session?.user?.bio || "No bio provided."}
             </p>
@@ -245,13 +244,7 @@ const ProfileBox = () => {
               </span>
             </div>
             <div>
-              <strong className="font-medium">Timezone: </strong>
-              <span className="ml-2 font-normal">
-                {session?.user?.timezone || "—"}
-              </span>
-            </div>
-            <div>
-              <strong className="font-medium">Last active: </strong>
+              <strong className="font-medium">Last Active: </strong>
               <span className="ml-2 font-normal">
                 {session?.user?.last_active
                   ? new Date(session.user.last_active).toLocaleString()

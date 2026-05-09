@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { email, nickname, username, status_text, bio } = body;
+  const { email, nickname, username, status_emoji, status_text, bio } = body;
 
   const session = await getServerSession(authOptions);
   const updateData: { [key: string]: any } = {};
@@ -31,6 +31,10 @@ export async function POST(request: Request) {
 
   if (username !== undefined) {
     updateData.username = username;
+  }
+
+  if (status_emoji !== undefined) {
+    updateData.status_emoji = status_emoji;
   }
 
   if (status_text !== undefined) {
@@ -64,6 +68,7 @@ export async function POST(request: Request) {
         email: user.email,
         nickname: user.nickname,
         username: user.username,
+        status_emoji: user.status_emoji,
         status_text: user.status_text,
         bio: user.bio,
       },

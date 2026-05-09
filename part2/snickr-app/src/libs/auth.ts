@@ -12,6 +12,8 @@ declare module "next-auth" {
       nickname?: string | null;
       status_text?: string | null;
       bio?: string | null;
+      last_active?: string | null;
+      created_at?: string | null;
     };
   }
 }
@@ -115,7 +117,7 @@ export const authOptions: NextAuthOptions = {
         if (userId) {
           const result = await query(
             `
-              SELECT user_id, email, username, nickname, status_text, bio
+              SELECT user_id, email, username, nickname, status_text, bio, last_active, created_at
               FROM users
               WHERE user_id = $1
               LIMIT 1
@@ -143,6 +145,8 @@ export const authOptions: NextAuthOptions = {
             nickname: dbUser?.nickname || null,
             status_text: dbUser?.status_text || null,
             bio: dbUser?.bio || null,
+            last_active: dbUser?.last_active ? new Date(dbUser.last_active).toISOString() : null,
+            created_at: dbUser?.created_at ? new Date(dbUser.created_at).toISOString() : null,
             image: token.picture,
           },
         };
