@@ -128,6 +128,16 @@ const WorkspaceDashboard = () => {
     loadSummary();
   }, [activeWorkspaceId]);
 
+  useEffect(() => {
+    setSelectedChannelId(null);
+    setChannelDetail(null);
+    setChannelLoading(false);
+    setMessageBody("");
+    setMessageError(null);
+    setMessageSubmitting(false);
+    setShowCreateChannelModal(false);
+  }, [activeWorkspaceId]);
+
   const reloadSummary = async () => {
     if (!activeWorkspaceId) return;
 

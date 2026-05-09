@@ -1,9 +1,11 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import ClickOutside from "@/components/ClickOutside";
 
 const WorkspaceDropdown = () => {
+  const router = useRouter();
   const { openCreateCard, workspaces, activeWorkspace, selectWorkspace } =
     useWorkspace();
   const [open, setOpen] = useState(false);
@@ -11,6 +13,7 @@ const WorkspaceDropdown = () => {
   const handleWorkspaceSelect = (workspaceId: number) => {
     selectWorkspace(workspaceId);
     setOpen(false);
+    router.replace("/");
   };
 
   return (
