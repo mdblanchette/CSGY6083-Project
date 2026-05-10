@@ -15,33 +15,52 @@ const CreateWorkspaceCard = () => {
 
   if (!showCreateCard) return null;
 
-  const create = async () => {
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description }),
-      });
-      if (res.ok) {
-        const workspace = await res.json();
-        setName("");
-        setDescription("");
-        closeCreateCard();
-        await refreshWorkspaces();
-        if (workspace?.id) {
-          selectWorkspace(workspace.id);
-        }
-      } else {
-        console.error("Create failed");
+const create = async () => {
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+
+  if (!trimmedName) {
+    alert("Workspace name is required");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/workspaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: trimmedName,
+        description: trimmedDescription || null,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setName("");
+      setDescription("");
+      closeCreateCard();
+
+      await refreshWorkspaces();
+
+      if (data?.id) {
+        selectWorkspace(data.id);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+
+      alert("Workspace created successfully");
+    } else {
+      alert(data.error || "Failed to create workspace");
+      console.error("Create failed:", data);
     }
-  };
+  } catch (err) {
+    console.error(err);
+    alert("Failed to create workspace");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <section className="w-full rounded-2xl border border-stroke bg-white p-5 shadow-sm dark:border-stroke-dark dark:bg-gray-dark md:p-6">
