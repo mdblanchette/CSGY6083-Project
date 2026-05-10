@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import ClickOutside from "@/components/ClickOutside";
+import PendingWorkspaceInvites from "./PendingWorkspaceInvites";
 
 const WorkspaceDropdown = () => {
   const router = useRouter();
@@ -105,6 +106,13 @@ const WorkspaceDropdown = () => {
                     <span className="font-medium">Create new workspace</span>
                     <span className="text-lg leading-none">+</span>
                   </button>
+                </div>
+
+                <div className="mt-3 border-t border-stroke pt-3 dark:border-stroke-dark">
+                  <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
+                    Pending invites
+                  </p>
+                  <PendingWorkspaceInvites />
                 </div>
               </div>
             </div>

@@ -68,11 +68,18 @@ const buildChannelDetail = async (
         c.channel_type AS type,
         c.description,
         c.created_at AS "createdAt",
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-        ) AS "memberCount",
+        CASE
+          WHEN LOWER(c.channel_type) = 'public' THEN (
+            SELECT COUNT(*)::int
+            FROM ${tables.workspaceMembers} wm
+            WHERE wm.workspace_id = c.workspace_id
+          )
+          ELSE (
+            SELECT COUNT(*)::int
+            FROM ${tables.channelMembers} cm
+            WHERE cm.channel_id = c.channel_id
+          )
+        END AS "memberCount",
         (
           SELECT COUNT(*)::int
           FROM ${tables.messages} m
@@ -125,6 +132,7 @@ const createMessageForSchema = async (
     `
       SELECT
         c.channel_id AS id,
+        c.workspace_id AS "workspaceId",
         c.channel_type AS type,
         (
           SELECT COUNT(*)::int
@@ -156,6 +164,7 @@ const createMessageForSchema = async (
 
   const accessRow = accessResult.rows[0] as {
     type: string;
+    workspaceId: number;
     memberCount: number;
     isWorkspaceMember: boolean;
     isChannelMember: boolean;
@@ -183,14 +192,16 @@ const createMessageForSchema = async (
       `,
       [channelId, userId],
     );
+  }
 
+  if (isPublicChannel) {
     const memberCountResult = await query(
       `
         SELECT COUNT(*)::int AS count
-        FROM ${tables.channelMembers}
-        WHERE channel_id = $1
+        FROM ${tables.workspaceMembers}
+        WHERE workspace_id = $1
       `,
-      [channelId],
+      [accessRow.workspaceId],
     );
 
     memberCount = (memberCountResult.rows[0] as { count: number }).count;

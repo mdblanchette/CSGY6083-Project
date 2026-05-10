@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import CreateChannelModal from "./Modals/CreateChannelModal";
+import WorkspaceInvitationForm from "./WorkspaceInvitationForm";
 
 type WorkspaceSummary = {
   workspace: {
@@ -64,11 +67,13 @@ type ChannelMessageResponse = {
 };
 
 const WorkspaceDashboard = () => {
+  const { data: session } = useSession();
   const { activeWorkspaceId, openCreateCard, showCreateCard } = useWorkspace();
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(
     null,
   );
@@ -584,35 +589,70 @@ const WorkspaceDashboard = () => {
 
       {/* Members */}
       <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
-          Members
-        </p>
-        <h3 className="mt-1 text-lg font-semibold text-dark dark:text-white">
-          {summary.members.length} member
-          {summary.members.length !== 1 ? "s" : ""}
-        </h3>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
+              Members
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-dark dark:text-white">
+              {summary.members.length} member
+              {summary.members.length !== 1 ? "s" : ""}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowInviteForm((prev) => !prev)}
+            className="inline-flex items-center justify-center rounded-xl border border-stroke bg-white px-4 py-2 text-sm font-medium text-primary transition hover:border-primary/70 dark:border-stroke-dark dark:bg-dark-3 dark:text-white"
+          >
+            {showInviteForm ? "Hide invite" : "Invite"}
+          </button>
+        </div>
+
+        {showInviteForm && (
+          <div className="mt-5">
+            <WorkspaceInvitationForm />
+          </div>
+        )}
 
         <div className="mt-6 space-y-3">
-          {summary.members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between rounded-xl bg-gray-1 p-3 dark:bg-dark-3"
-            >
-              <div>
-                <p className="font-medium text-dark dark:text-white">
-                  {member.nickname || member.username}
-                </p>
-                <p className="text-xs text-dark-4 dark:text-dark-6">
-                  {member.email}
-                </p>
+          {summary.members.map((member) => {
+            const profilePath = member.username
+              ? member.username === session?.user?.username
+                ? "/profile"
+                : `/profile/${member.username}`
+              : "/profile";
+
+            return (
+              <div
+                key={member.id}
+                className="flex items-center justify-between rounded-xl bg-gray-1 p-3 dark:bg-dark-3"
+              >
+                <div>
+                  {member.username ? (
+                    <Link
+                      href={profilePath}
+                      className="font-medium text-dark dark:text-white hover:text-primary"
+                    >
+                      {member.nickname || member.username}
+                    </Link>
+                  ) : (
+                    <p className="font-medium text-dark dark:text-white">
+                      {member.nickname || member.email}
+                    </p>
+                  )}
+                  <p className="text-xs text-dark-4 dark:text-dark-6">
+                    {member.email}
+                  </p>
+                </div>
+                {member.isAdmin && (
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary dark:bg-primary/20">
+                    Admin
+                  </span>
+                )}
               </div>
-              {member.isAdmin && (
-                <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary dark:bg-primary/20">
-                  Admin
-                </span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

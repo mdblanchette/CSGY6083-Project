@@ -265,7 +265,7 @@ const ProfileBox = () => {
 
         <div className="mt-4 text-left">
           <h3 className="mb-1 text-heading-6 font-bold text-dark dark:text-white">
-            {data.username || data.nickname || data.name || "User"}
+            {data.nickname || data.username || data.name || "User"}
           </h3>
 
           {(data.status_emoji || data.status_text) && (

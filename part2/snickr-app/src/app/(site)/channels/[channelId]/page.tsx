@@ -43,6 +43,7 @@ type ChannelPageData = {
     body: string;
     postedAt: string;
     senderName: string | null;
+    senderNickname: string | null;
     senderEmail: string | null;
   }>;
 };
@@ -165,6 +166,7 @@ const buildChannelPageData = async (
         m.body,
         m.posted_at AS "postedAt",
         u.username AS "senderName",
+        u.nickname AS "senderNickname",
         u.email AS "senderEmail"
       FROM ${tables.messages} m
       LEFT JOIN ${tables.users} u
@@ -341,11 +343,18 @@ export default async function ChannelPage({
                       className="rounded-2xl border border-stroke p-4 dark:border-stroke-dark"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-dark dark:text-white">
-                          {message.senderName ||
-                            message.senderEmail ||
-                            "System"}
-                        </p>
+                        {message.senderName ? (
+                          <Link
+                            href={`/profile/${message.senderName}`}
+                            className="font-semibold text-dark dark:text-white hover:text-primary"
+                          >
+                            {message.senderNickname || message.senderName || message.senderEmail || "Unknown User"}
+                          </Link>
+                        ) : (
+                          <p className="font-semibold text-dark dark:text-white">
+                            {message.senderEmail || "System"}
+                          </p>
+                        )}
                         <p className="text-xs text-dark-4 dark:text-dark-6">
                           {new Date(message.postedAt).toLocaleString()}
                         </p>
@@ -383,9 +392,18 @@ export default async function ChannelPage({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-dark dark:text-white">
-                          {member.nickname || member.username}
-                        </p>
+                        {member.username ? (
+                          <Link
+                            href={`/profile/${member.username}`}
+                            className="font-semibold text-dark dark:text-white hover:text-primary"
+                          >
+                            {member.nickname || member.username}
+                          </Link>
+                        ) : (
+                          <p className="font-semibold text-dark dark:text-white">
+                            {member.nickname || member.username || member.email || "Unknown User"}
+                          </p>
+                        )}
                         <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">
                           {member.email}
                         </p>

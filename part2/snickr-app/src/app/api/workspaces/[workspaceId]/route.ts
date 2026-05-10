@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "@/libs/db";
+import { getAuthSession } from "@/libs/auth";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,11 @@ const parseWorkspaceId = (value: string) => {
   return Number.isFinite(workspaceId) ? workspaceId : null;
 };
 
-const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
+const buildSummary = async (
+  workspaceId: number,
+  userId: number,
+  schema: "lower" | "upper",
+): Promise<WorkspaceSummary | { forbidden: true } | null> => {
   const tables =
     schema === "lower"
       ? {
@@ -72,6 +77,21 @@ const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
     return null;
   }
 
+  const membershipResult = await query(
+    `
+      SELECT 1
+      FROM ${tables.workspaceMembers} wm
+      WHERE wm.workspace_id = $1
+        AND wm.user_id = $2
+      LIMIT 1
+    `,
+    [workspaceId, userId],
+  );
+
+  if (membershipResult.rows.length === 0) {
+    return { forbidden: true };
+  }
+
   const channelsResult = await query(
     `
       SELECT
@@ -80,11 +100,18 @@ const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
         c.channel_type AS type,
         c.description,
         c.created_at AS "createdAt",
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-        ) AS "memberCount",
+        CASE
+          WHEN LOWER(c.channel_type) = 'public' THEN (
+            SELECT COUNT(*)::int
+            FROM ${tables.workspaceMembers} wm
+            WHERE wm.workspace_id = c.workspace_id
+          )
+          ELSE (
+            SELECT COUNT(*)::int
+            FROM ${tables.channelMembers} cm
+            WHERE cm.channel_id = c.channel_id
+          )
+        END AS "memberCount",
         (
           SELECT COUNT(*)::int
           FROM ${tables.messages} m
@@ -92,9 +119,18 @@ const buildSummary = async (workspaceId: number, schema: "lower" | "upper") => {
         ) AS "messageCount"
       FROM ${tables.channels} c
       WHERE c.workspace_id = $1
+        AND (
+          LOWER(c.channel_type) = 'public'
+          OR EXISTS (
+            SELECT 1
+            FROM ${tables.channelMembers} cm
+            WHERE cm.channel_id = c.channel_id
+              AND cm.user_id = $2
+          )
+        )
       ORDER BY c.created_at ASC
     `,
-    [workspaceId],
+    [workspaceId, userId],
   );
 
   const membersResult = await query(
@@ -137,24 +173,48 @@ export async function GET(
       );
     }
 
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
     let summary = null;
+    let forbidden = false;
 
     try {
-      summary = await buildSummary(workspaceId, "lower");
+      const result = await buildSummary(workspaceId, userId, "lower");
+      if (result && "forbidden" in result) {
+        forbidden = true;
+      } else {
+        summary = result;
+      }
     } catch (error: any) {
       if (error?.code !== "42P01") {
         throw error;
       }
     }
 
-    if (!summary) {
+    if (!summary && !forbidden) {
       try {
-        summary = await buildSummary(workspaceId, "upper");
+        const result = await buildSummary(workspaceId, userId, "upper");
+        if (result && "forbidden" in result) {
+          forbidden = true;
+        } else {
+          summary = result;
+        }
       } catch (error: any) {
         if (error?.code !== "42P01") {
           throw error;
         }
       }
+    }
+
+    if (forbidden && !summary) {
+      return NextResponse.json(
+        { error: "Access denied" },
+        { status: 403 },
+      );
     }
 
     if (!summary) {
