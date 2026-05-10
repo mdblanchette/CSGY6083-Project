@@ -4,6 +4,11 @@ import { getAuthSession } from "@/libs/auth";
 
 export const runtime = "nodejs";
 
+type CurrentUserMembership = {
+  isMember: boolean;
+  isAdmin: boolean;
+} | null;
+
 type ChannelDetail = {
   channel: {
     id: number;
@@ -19,7 +24,9 @@ type ChannelDetail = {
     body: string;
     postedAt: string;
     senderName: string | null;
+    senderNickname: string | null;
     senderEmail: string | null;
+    senderImage: string | null;
   }>;
 };
 
@@ -28,7 +35,9 @@ type MessageRow = {
   body: string;
   postedAt: string;
   senderName: string | null;
+  senderNickname: string | null;
   senderEmail: string | null;
+  senderImage: string | null;
 };
 
 const parseChannelId = (value: string) => {
@@ -57,6 +66,7 @@ const getTables = (schema: "lower" | "upper") => {
 const buildChannelDetail = async (
   channelId: number,
   schema: "lower" | "upper",
+  userId?: number,
 ) => {
   const tables = getTables(schema);
 
@@ -103,7 +113,9 @@ const buildChannelDetail = async (
         m.body,
         m.posted_at AS "postedAt",
         u.username AS "senderName",
-        u.email AS "senderEmail"
+        u.nickname AS "senderNickname",
+        u.email AS "senderEmail",
+        u.image AS "senderImage"
       FROM ${tables.messages} m
       LEFT JOIN ${tables.users} u
         ON u.user_id = m.sender_id
@@ -114,10 +126,24 @@ const buildChannelDetail = async (
     [channelId],
   );
 
+  let currentUser: CurrentUserMembership = null;
+  if (userId !== undefined) {
+    const memberRow = await query(
+      `SELECT is_admin FROM ${tables.channelMembers}
+       WHERE channel_id = $1 AND user_id = $2 LIMIT 1`,
+      [channelId, userId],
+    );
+    currentUser =
+      memberRow.rows.length > 0
+        ? { isMember: true, isAdmin: Boolean(memberRow.rows[0].is_admin) }
+        : { isMember: false, isAdmin: false };
+  }
+
   return {
     channel: channelResult.rows[0],
     messages: messagesResult.rows.reverse(),
-  } as ChannelDetail;
+    currentUser,
+  } as ChannelDetail & { currentUser: CurrentUserMembership };
 };
 
 const createMessageForSchema = async (
@@ -224,7 +250,11 @@ const createMessageForSchema = async (
 
   const senderResult = await query(
     `
-      SELECT username AS "senderName", email AS "senderEmail"
+      SELECT
+        username AS "senderName",
+        nickname AS "senderNickname",
+        email AS "senderEmail",
+        image AS "senderImage"
       FROM ${tables.users}
       WHERE user_id = $1
       LIMIT 1
@@ -233,7 +263,12 @@ const createMessageForSchema = async (
   );
 
   const sender = senderResult.rows[0] as
-    | { senderName: string | null; senderEmail: string | null }
+    | {
+        senderName: string | null;
+        senderNickname: string | null;
+        senderEmail: string | null;
+        senderImage: string | null;
+      }
     | undefined;
 
   return {
@@ -245,7 +280,9 @@ const createMessageForSchema = async (
       body: messageRow.body,
       postedAt: messageRow.postedAt,
       senderName: sender?.senderName ?? null,
+      senderNickname: sender?.senderNickname ?? null,
       senderEmail: sender?.senderEmail ?? null,
+      senderImage: sender?.senderImage ?? null,
     } as MessageRow,
   };
 };
@@ -265,10 +302,13 @@ export async function GET(
       );
     }
 
+    const session = await getAuthSession();
+    const userId = session?.user?.id ? Number(session.user.id) : undefined;
+
     let detail = null;
 
     try {
-      detail = await buildChannelDetail(channelId, "lower");
+      detail = await buildChannelDetail(channelId, "lower", userId);
     } catch (error: any) {
       if (error?.code !== "42P01") {
         throw error;
@@ -277,7 +317,7 @@ export async function GET(
 
     if (!detail) {
       try {
-        detail = await buildChannelDetail(channelId, "upper");
+        detail = await buildChannelDetail(channelId, "upper", userId);
       } catch (error: any) {
         if (error?.code !== "42P01") {
           throw error;

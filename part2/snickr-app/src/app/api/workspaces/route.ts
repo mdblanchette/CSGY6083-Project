@@ -77,8 +77,8 @@ const insertWorkspace = async (
 
     await query(
       `
-        INSERT INTO workspace_members (workspace_id,user_id,is_admin)
-        VALUES ($1, $2, true)
+        INSERT INTO workspace_members (workspace_id, user_id, is_admin, is_owner)
+        VALUES ($1, $2, true, true)
       `,
       [row.id, createdBy],
     );
@@ -86,6 +86,7 @@ const insertWorkspace = async (
     return {
       ...row,
       isAdmin: true,
+      isOwner: true,
     };
   } catch (error: any) {
     if (error?.code !== "42P01") {
@@ -105,8 +106,8 @@ const insertWorkspace = async (
 
     await query(
       `
-        INSERT INTO "Workspace_Members" (workspace_id, user_id, is_admin)
-        VALUES ($1, $2, true)
+        INSERT INTO "Workspace_Members" (workspace_id, user_id, is_admin, is_owner)
+        VALUES ($1, $2, true, true)
       `,
       [row.id, createdBy],
     );
@@ -114,6 +115,7 @@ const insertWorkspace = async (
     return {
       ...row,
       isAdmin: true,
+      isOwner: true,
     };
   }
 };

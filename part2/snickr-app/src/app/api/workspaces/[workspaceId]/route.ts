@@ -26,6 +26,7 @@ type WorkspaceSummary = {
     username: string;
     nickname: string | null;
     isAdmin: boolean;
+    isOwner: boolean;
     joinedAt: string;
   }>;
 };
@@ -141,12 +142,13 @@ const buildSummary = async (
         u.username,
         u.nickname,
         wm.is_admin AS "isAdmin",
+        wm.is_owner AS "isOwner",
         wm.joined_at AS "joinedAt"
       FROM ${tables.workspaceMembers} wm
       INNER JOIN ${tables.users} u
         ON u.user_id = wm.user_id
       WHERE wm.workspace_id = $1
-      ORDER BY wm.is_admin DESC, wm.joined_at ASC
+      ORDER BY wm.is_owner DESC, wm.is_admin DESC, wm.joined_at ASC
     `,
     [workspaceId],
   );

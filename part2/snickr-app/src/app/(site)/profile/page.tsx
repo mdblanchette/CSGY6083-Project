@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
 import ProfileBox from "@/components/ProfileBox";
 import SettingBoxes from "@/components/SettingBoxes";
@@ -9,6 +10,8 @@ import React from "react";
 
 function ProfileContent() {
   const { showCreateCard } = useWorkspace();
+  const [file, setFile] = useState<File | undefined>();
+  const [coverFile, setCoverFile] = useState<File | undefined>();
 
   if (showCreateCard) {
     return (
@@ -27,7 +30,10 @@ function ProfileContent() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-        <ProfileBox />
+        <ProfileBox
+          onProfileFileChange={setFile}
+          onCoverFileChange={setCoverFile}
+        />
 
         <div>
           <div className="mb-6 rounded-[10px] border border-stroke bg-white px-7 py-6 shadow-1 dark:border-dark-3 dark:bg-gray-dark dark:shadow-card">
@@ -40,7 +46,7 @@ function ProfileContent() {
             </p>
           </div>
 
-          <SettingBoxes />
+          <SettingBoxes file={file} coverFile={coverFile} />
         </div>
       </div>
     </div>

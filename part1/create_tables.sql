@@ -18,6 +18,8 @@ CREATE TABLE Users (
 	status_emoji TEXT,
 	status_text	VARCHAR(100) DEFAULT '',
 	bio		VARCHAR(500) DEFAULT '',
+	image		VARCHAR(500),
+	cover_image	VARCHAR(500),
 	last_active	TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	created_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -34,6 +36,7 @@ CREATE TABLE Workspace_Members (
 	workspace_id	INT NOT NULL REFERENCES Workspaces(workspace_id) ON DELETE CASCADE,
 	user_id		INT NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
 	is_admin	BOOLEAN NOT NULL DEFAULT FALSE,
+	is_owner	BOOLEAN NOT NULL DEFAULT FALSE,
 	joined_at	TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (workspace_id, user_id)
 );

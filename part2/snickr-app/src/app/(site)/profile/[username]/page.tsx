@@ -16,6 +16,8 @@ type UserProfile = {
   statusEmoji: string | null;
   lastActive: string | null;
   createdAt: string | null;
+  image: string | null;
+  coverImage: string | null;
 };
 
 export const metadata: Metadata = {
@@ -41,7 +43,9 @@ const getUserByIdentifier = async (identifier: string) => {
         status_text AS "statusText",
         status_emoji AS "statusEmoji",
         last_active AS "lastActive",
-        created_at AS "createdAt"
+        created_at AS "createdAt",
+        image,
+        cover_image AS "coverImage"
       FROM users
       WHERE username = $1 OR user_id = $2
       LIMIT 1
@@ -56,7 +60,9 @@ const getUserByIdentifier = async (identifier: string) => {
         status_text AS "statusText",
         status_emoji AS "statusEmoji",
         last_active AS "lastActive",
-        created_at AS "createdAt"
+        created_at AS "createdAt",
+        image,
+        cover_image AS "coverImage"
       FROM users
       WHERE username = $1
       LIMIT 1

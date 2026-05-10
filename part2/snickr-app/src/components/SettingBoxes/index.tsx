@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 
@@ -13,7 +14,12 @@ interface SettingsFormData {
   bio: string;
 }
 
-const SettingBoxes = () => {
+interface SettingBoxesProps {
+  file?: File;
+  coverFile?: File;
+}
+
+const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
   const { data: session, update } = useSession();
   const sessionUser = session?.user as {
     email?: string | null;
@@ -33,9 +39,9 @@ const SettingBoxes = () => {
     bio: sessionUser?.bio ?? "",
   });
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const isDemo = session?.user?.email?.includes("demo-");
 
-  // Sync form state with session whenever session updates
   useEffect(() => {
     setData({
       nickname: sessionUser?.nickname ?? "",
@@ -55,50 +61,23 @@ const SettingBoxes = () => {
   ]);
 
   const handleChange = (e: any) => {
-    setData({
-      ...data,
-      [e.target.name]: e.target.value,
-    });
+    setData({ ...data, [e.target.name]: e.target.value });
   };
 
-  const updateUserProfile = async (userData: any) => {
-    try {
-      const requestBody = {
-        nickname: userData.nickname,
-        email: userData.email,
-        username: userData.username,
-        status_emoji: userData.status_emoji,
-        status_text: userData.status_text,
-        bio: userData.bio,
-      };
+  const uploadPhoto = async (f: File, imageType: "profile" | "cover") => {
+    const formData = new FormData();
+    formData.append("file", f);
+    formData.append("imageType", imageType);
 
-      const res = await fetch("/api/user/update", {
-        method: "POST",
-        body: JSON.stringify(requestBody),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const json = await res.json();
 
-      const updatedUser = await res.json();
-
-      if (res.status === 200) {
-        toast.success("Profile updated successfully");
-        setLoading(false);
-        return updatedUser;
-      } else if (res.status === 401) {
-        setLoading(false);
-        toast.error("Can't update demo user");
-      } else {
-        setLoading(false);
-        toast.error("Failed to update profile");
-      }
-    } catch (error: any) {
-      setLoading(false);
-      toast.error(error?.response?.data);
+    if (!res.ok) {
+      toast.error(json.error || "Failed to upload image");
+      return null;
     }
 
-    return null;
+    return json.key as string;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -106,28 +85,64 @@ const SettingBoxes = () => {
 
     if (isDemo) {
       toast.error("Can't update demo user");
-      return null;
+      return;
     }
 
     setLoading(true);
 
-    const updatedUser = await updateUserProfile(data);
+    let imageKey: string | null = null;
+    let coverImageKey: string | null = null;
 
-    if (updatedUser) {
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          nickname: updatedUser.nickname,
-          email: updatedUser.email,
-          username: updatedUser.username,
-          status_emoji: updatedUser.status_emoji,
-          status_text: updatedUser.status_text,
-          bio: updatedUser.bio,
-        },
+    if (file) imageKey = await uploadPhoto(file, "profile");
+    if (coverFile) coverImageKey = await uploadPhoto(coverFile, "cover");
+
+    const requestBody: any = {
+      nickname: data.nickname,
+      email: data.email,
+      username: data.username,
+      status_emoji: data.status_emoji,
+      status_text: data.status_text,
+      bio: data.bio,
+    };
+
+    if (imageKey) requestBody.image = imageKey;
+    if (coverImageKey) requestBody.coverImage = coverImageKey;
+
+    try {
+      const res = await fetch("/api/user/update", {
+        method: "POST",
+        body: JSON.stringify(requestBody),
+        headers: { "Content-Type": "application/json" },
       });
-      setLoading(false);
+
+      const updatedUser = await res.json();
+
+      if (res.status === 200) {
+        toast.success("Profile updated successfully");
+        await update({
+          ...session,
+          user: {
+            ...session?.user,
+            nickname: updatedUser.nickname,
+            email: updatedUser.email,
+            username: updatedUser.username,
+            status_emoji: updatedUser.status_emoji,
+            status_text: updatedUser.status_text,
+            bio: updatedUser.bio,
+            image: updatedUser.image,
+            coverImage: updatedUser.coverImage,
+          },
+        });
+      } else if (res.status === 401) {
+        toast.error("Can't update demo user");
+      } else {
+        toast.error("Failed to update profile");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Update failed");
     }
+
+    setLoading(false);
   };
 
   return (
@@ -169,16 +184,16 @@ const SettingBoxes = () => {
                   Username
                 </label>
                 <div className="relative">
-                <input
-                  className="w-full rounded-[7px] border-[1.5px] border-slate-300 bg-slate-100 py-2.5 px-4.5 text-slate-500 placeholder:text-slate-400 cursor-not-allowed focus:border-primary focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:placeholder:text-slate-500 dark:focus:border-primary"
-                  type="text"
-                  name="username"
-                  id="username"
-                  placeholder="Username cannot be changed"
-                  value={data.username || ""}
-                  disabled
-                />
-              </div>
+                  <input
+                    className="w-full rounded-[7px] border-[1.5px] border-slate-300 bg-slate-100 py-2.5 px-4.5 text-slate-500 placeholder:text-slate-400 cursor-not-allowed focus:border-primary focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:placeholder:text-slate-500 dark:focus:border-primary"
+                    type="text"
+                    name="username"
+                    id="username"
+                    placeholder="Username cannot be changed"
+                    value={data.username || ""}
+                    disabled
+                  />
+                </div>
               </div>
             </div>
 
@@ -273,14 +288,11 @@ const SettingBoxes = () => {
                 className="flex justify-center rounded-[7px] border border-stroke px-6 py-[7px] font-medium text-dark hover:shadow-1 dark:border-dark-3 dark:text-white"
                 type="button"
                 onClick={() => {
-                  setData({
-                    nickname: sessionUser?.nickname ?? "",
-                    email: sessionUser?.email ?? "",
-                    username: sessionUser?.username ?? "",
-                    status_emoji: sessionUser?.status_emoji ?? "",
-                    status_text: sessionUser?.status_text ?? "",
-                    bio: sessionUser?.bio ?? "",
-                  });
+                  if (window.history.length > 1) {
+                    router.back();
+                    return;
+                  }
+                  router.push("/");
                 }}
               >
                 Cancel
@@ -292,9 +304,7 @@ const SettingBoxes = () => {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     Saving{" "}
-                    <span
-                      className={`h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-t-transparent dark:border-dark dark:border-t-transparent`}
-                    ></span>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-t-transparent dark:border-dark dark:border-t-transparent" />
                   </span>
                 ) : (
                   "Save"

@@ -13,6 +13,8 @@ declare module "next-auth" {
       status_emoji?: string | null;
       status_text?: string | null;
       bio?: string | null;
+      image?: string | null;
+      coverImage?: string | null;
       last_active?: string | null;
       created_at?: string | null;
     };
@@ -95,6 +97,7 @@ export const authOptions: NextAuthOptions = {
           ...session.user,
           picture: session.user.image,
           image: session.user.image,
+          coverImage: session.user.coverImage,
         };
       }
 
@@ -118,7 +121,7 @@ export const authOptions: NextAuthOptions = {
         if (userId) {
           const result = await query(
             `
-              SELECT user_id, email, username, nickname, status_emoji, status_text, bio, last_active, created_at
+              SELECT user_id, email, username, nickname, status_emoji, status_text, bio, image, cover_image, last_active, created_at
               FROM users
               WHERE user_id = $1
               LIMIT 1
@@ -149,7 +152,8 @@ export const authOptions: NextAuthOptions = {
             bio: dbUser?.bio || null,
             last_active: dbUser?.last_active ? new Date(dbUser.last_active).toISOString() : null,
             created_at: dbUser?.created_at ? new Date(dbUser.created_at).toISOString() : null,
-            image: token.picture,
+            image: dbUser?.image || token.picture,
+            coverImage: dbUser?.cover_image,
           },
         };
       }

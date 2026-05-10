@@ -15,7 +15,7 @@ const s3Client = new S3Client({
 const acceptedTypes = ["image/png", "image/jpeg", "image/jpg"];
 const maxSize = 2000000; // 2mb
 
-export async function getSignedURL(type: string, size: number) {
+export async function getSignedURL(type: string, size: number, imageType: "profile" | "cover" = "profile") {
   const user = await isAuthorized();
 
   if (!user) {
@@ -30,7 +30,7 @@ export async function getSignedURL(type: string, size: number) {
     return { failure: "file too large" };
   }
 
-  const key = `profile-image--${user.id}`;
+  const key = `${imageType}-image--${user.id}`;
 
   const putObjectCommand = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME!,
