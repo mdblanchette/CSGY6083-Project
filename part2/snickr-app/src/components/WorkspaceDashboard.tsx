@@ -96,6 +96,15 @@ const WorkspaceDashboard = () => {
   const [pendingChannelInvites, setPendingChannelInvites] = useState<PendingChannelInvitation[]>([]);
   const [leavingWorkspace, setLeavingWorkspace] = useState(false);
   const [leavingChannel, setLeavingChannel] = useState(false);
+  const [deletingChannel, setDeletingChannel] = useState(false);
+  const [deletingWorkspace, setDeletingWorkspace] = useState(false);
+  const [togglingChannelType, setTogglingChannelType] = useState(false);
+  const [editingWorkspaceName, setEditingWorkspaceName] = useState(false);
+  const [workspaceNameInput, setWorkspaceNameInput] = useState("");
+  const [savingWorkspaceName, setSavingWorkspaceName] = useState(false);
+  const [editingChannelName, setEditingChannelName] = useState(false);
+  const [channelNameInput, setChannelNameInput] = useState("");
+  const [savingChannelName, setSavingChannelName] = useState(false);
   const [memberActionId, setMemberActionId] = useState<number | null>(null);
 
   // ── Data loading ─────────────────────────────────────────────────────────
@@ -255,6 +264,128 @@ const WorkspaceDashboard = () => {
     }
   };
 
+  const handleSaveWorkspaceName = async () => {
+    if (!activeWorkspaceId || !workspaceNameInput.trim()) return;
+    setSavingWorkspaceName(true);
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: workspaceNameInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Workspace renamed.");
+        setSummary((prev) => prev ? { ...prev, workspace: { ...prev.workspace, name: data.name } } : prev);
+        await refreshWorkspaces();
+        setEditingWorkspaceName(false);
+      } else {
+        toast.error(data.error || "Failed to rename workspace");
+      }
+    } catch {
+      toast.error("Failed to rename workspace");
+    } finally {
+      setSavingWorkspaceName(false);
+    }
+  };
+
+  const handleSaveChannelName = async () => {
+    if (!selectedChannelId || !channelNameInput.trim()) return;
+    setSavingChannelName(true);
+    try {
+      const res = await fetch(`/api/channels/${selectedChannelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: channelNameInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Channel renamed.");
+        setChannelDetail((prev) =>
+          prev ? { ...prev, channel: { ...prev.channel, name: data.name } } : prev,
+        );
+        reloadSummary();
+        setEditingChannelName(false);
+      } else {
+        toast.error(data.error || "Failed to rename channel");
+      }
+    } catch {
+      toast.error("Failed to rename channel");
+    } finally {
+      setSavingChannelName(false);
+    }
+  };
+
+  const handleToggleChannelType = async () => {
+    if (!selectedChannelId || !channelDetail) return;
+    const current = channelDetail.channel.type.toLowerCase();
+    const next = current === "private" ? "public" : "private";
+    if (!confirm(`Change #${channelDetail.channel.name} from ${current} to ${next}?`)) return;
+    setTogglingChannelType(true);
+    try {
+      const res = await fetch(`/api/channels/${selectedChannelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Channel is now ${next}.`);
+        setChannelDetail((prev) =>
+          prev ? { ...prev, channel: { ...prev.channel, type: next } } : prev,
+        );
+        reloadSummary();
+      } else {
+        toast.error(data.error || "Failed to update channel");
+      }
+    } catch {
+      toast.error("Failed to update channel");
+    } finally {
+      setTogglingChannelType(false);
+    }
+  };
+
+  const handleDeleteChannel = async () => {
+    if (!selectedChannelId || !channelDetail) return;
+    if (!confirm(`Delete #${channelDetail.channel.name}? This cannot be undone.`)) return;
+    setDeletingChannel(true);
+    try {
+      const res = await fetch(`/api/channels/${selectedChannelId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Channel deleted.");
+        closeChannelDetail();
+        reloadSummary();
+      } else {
+        toast.error(data.error || "Failed to delete channel");
+      }
+    } catch {
+      toast.error("Failed to delete channel");
+    } finally {
+      setDeletingChannel(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!activeWorkspaceId || !summary) return;
+    if (!confirm(`Delete "${summary.workspace.name}"? This will permanently remove the workspace and all its channels. This cannot be undone.`)) return;
+    setDeletingWorkspace(true);
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Workspace deleted.");
+        await refreshWorkspaces();
+      } else {
+        toast.error(data.error || "Failed to delete workspace");
+      }
+    } catch {
+      toast.error("Failed to delete workspace");
+    } finally {
+      setDeletingWorkspace(false);
+    }
+  };
+
   // ── Member admin actions ──────────────────────────────────────────────────
 
   const handleMemberAction = async (
@@ -365,6 +496,11 @@ const WorkspaceDashboard = () => {
     );
   }
 
+  // Compute workspace role once — available to both channel detail and main views
+  const currentMember = summary.members.find((m) => m.username === session?.user?.username);
+  const isWorkspaceAdmin = currentMember?.isAdmin ?? false;
+  const isWorkspaceOwner = currentMember?.isOwner ?? false;
+
   // ── Channel detail view ───────────────────────────────────────────────────
 
   if (selectedChannelId !== null) {
@@ -400,22 +536,74 @@ const WorkspaceDashboard = () => {
           <button onClick={closeChannelDetail} className="text-primary transition hover:text-primary/80">
             ← Back to Workspace
           </button>
-          {isChannelMember && isPrivate && (
-            <button onClick={handleLeaveChannel} disabled={leavingChannel}
-              className="rounded-lg border border-red-300 px-4 py-1.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:hover:bg-red-900/20">
-              {leavingChannel ? "Leaving…" : "Leave Channel"}
-            </button>
-          )}
+          <div className="flex gap-2">
+            {isChannelMember && isPrivate && !isWorkspaceOwner && (
+              <button onClick={handleLeaveChannel} disabled={leavingChannel}
+                className="rounded-lg border border-red-300 px-4 py-1.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:hover:bg-red-900/20">
+                {leavingChannel ? "Leaving…" : "Leave Channel"}
+              </button>
+            )}
+            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              <button onClick={handleDeleteChannel} disabled={deletingChannel}
+                className="rounded-lg bg-red-500 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-600 disabled:opacity-60">
+                {deletingChannel ? "Deleting…" : "Delete Channel"}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">Channel</p>
-          <h2 className="mt-2 text-2xl font-bold text-dark dark:text-white"># {channelDetail.channel.name}</h2>
+          {editingChannelName ? (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xl font-bold text-dark dark:text-white">#</span>
+              <input
+                autoFocus
+                value={channelNameInput}
+                onChange={(e) => setChannelNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveChannelName();
+                  if (e.key === "Escape") setEditingChannelName(false);
+                }}
+                className="flex-1 rounded-lg border border-stroke bg-transparent px-3 py-1.5 text-xl font-bold text-dark outline-none focus:border-primary dark:border-stroke-dark dark:text-white"
+              />
+              <button onClick={handleSaveChannelName} disabled={savingChannelName}
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+                {savingChannelName ? "Saving…" : "Save"}
+              </button>
+              <button onClick={() => setEditingChannelName(false)}
+                className="rounded-lg border border-stroke px-3 py-1.5 text-sm text-dark-4 dark:border-stroke-dark dark:text-dark-6">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-dark dark:text-white"># {channelDetail.channel.name}</h2>
+              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+                <button
+                  onClick={() => { setChannelNameInput(channelDetail.channel.name); setEditingChannelName(true); }}
+                  className="text-dark-4 transition hover:text-primary dark:text-dark-6"
+                  title="Rename channel"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              )}
+            </div>
+          )}
           {channelDetail.channel.description && <p className="mt-2 text-dark-4 dark:text-dark-6">{channelDetail.channel.description}</p>}
-          <div className="mt-4 flex items-center gap-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
               {channelDetail.channel.type}
             </span>
+            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              <button
+                onClick={handleToggleChannelType}
+                disabled={togglingChannelType}
+                className="inline-flex rounded-full border border-stroke px-3 py-1 text-xs font-medium text-dark-4 transition hover:border-primary hover:text-primary disabled:opacity-60 dark:border-stroke-dark dark:text-dark-6"
+              >
+                {togglingChannelType ? "Updating…" : isPrivate ? "Make Public" : "Make Private"}
+              </button>
+            )}
             <p className="text-xs text-dark-4 dark:text-dark-6">
               {channelDetail.channel.memberCount} member{channelDetail.channel.memberCount !== 1 ? "s" : ""} •{" "}
               {channelDetail.channel.messageCount} message{channelDetail.channel.messageCount !== 1 ? "s" : ""}
@@ -494,16 +682,46 @@ const WorkspaceDashboard = () => {
 
   // ── Workspace main view (two-column) ──────────────────────────────────────
 
-  const currentMember = summary.members.find((m) => m.username === session?.user?.username);
-  const isWorkspaceAdmin = currentMember?.isAdmin ?? false;
-  const isWorkspaceOwner = currentMember?.isOwner ?? false;
-
   return (
     <section className="space-y-6">
       {/* Workspace header */}
       <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">Workspace</p>
-        <h2 className="mt-2 text-2xl font-bold text-dark dark:text-white">{summary.workspace.name}</h2>
+        {editingWorkspaceName ? (
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              autoFocus
+              value={workspaceNameInput}
+              onChange={(e) => setWorkspaceNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveWorkspaceName();
+                if (e.key === "Escape") setEditingWorkspaceName(false);
+              }}
+              className="flex-1 rounded-lg border border-stroke bg-transparent px-3 py-1.5 text-xl font-bold text-dark outline-none focus:border-primary dark:border-stroke-dark dark:text-white"
+            />
+            <button onClick={handleSaveWorkspaceName} disabled={savingWorkspaceName}
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+              {savingWorkspaceName ? "Saving…" : "Save"}
+            </button>
+            <button onClick={() => setEditingWorkspaceName(false)}
+              className="rounded-lg border border-stroke px-3 py-1.5 text-sm text-dark-4 dark:border-stroke-dark dark:text-dark-6">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-dark dark:text-white">{summary.workspace.name}</h2>
+            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              <button
+                onClick={() => { setWorkspaceNameInput(summary.workspace.name); setEditingWorkspaceName(true); }}
+                className="text-dark-4 transition hover:text-primary dark:text-dark-6"
+                title="Rename workspace"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
+          </div>
+        )}
         {summary.workspace.description && <p className="mt-2 text-dark-4 dark:text-dark-6">{summary.workspace.description}</p>}
         <p className="mt-3 text-xs text-dark-4 dark:text-dark-6">
           Created {new Date(summary.workspace.createdAt).toLocaleDateString()}
@@ -523,10 +741,12 @@ const WorkspaceDashboard = () => {
                   {summary.channels.length} channel{summary.channels.length !== 1 ? "s" : ""}
                 </h3>
               </div>
-              <button type="button" onClick={() => setShowCreateChannelModal(true)}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90">
-                + Add
-              </button>
+              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+                <button type="button" onClick={() => setShowCreateChannelModal(true)}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90">
+                  + Add
+                </button>
+              )}
             </div>
             <div className="mt-6 space-y-3">
               {summary.channels.length > 0 ? (
@@ -668,10 +888,17 @@ const WorkspaceDashboard = () => {
           </div>
 
           {currentMember && (
-            <button onClick={handleLeaveWorkspace} disabled={leavingWorkspace}
-              className="mt-6 w-full rounded-xl border border-red-300 py-2.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:hover:bg-red-900/20">
-              {leavingWorkspace ? "Leaving…" : "Leave Workspace"}
-            </button>
+            isWorkspaceOwner ? (
+              <button onClick={handleDeleteWorkspace} disabled={deletingWorkspace}
+                className="mt-6 w-full rounded-xl bg-red-500 py-2.5 text-sm font-medium text-white transition hover:bg-red-600 disabled:opacity-60">
+                {deletingWorkspace ? "Deleting…" : "Delete Workspace"}
+              </button>
+            ) : (
+              <button onClick={handleLeaveWorkspace} disabled={leavingWorkspace}
+                className="mt-6 w-full rounded-xl border border-red-300 py-2.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:hover:bg-red-900/20">
+                {leavingWorkspace ? "Leaving…" : "Leave Workspace"}
+              </button>
+            )
           )}
         </div>
       </div>

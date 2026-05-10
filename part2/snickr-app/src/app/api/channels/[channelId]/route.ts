@@ -85,9 +85,14 @@ const buildChannelDetail = async (
             WHERE wm.workspace_id = c.workspace_id
           )
           ELSE (
-            SELECT COUNT(*)::int
-            FROM ${tables.channelMembers} cm
-            WHERE cm.channel_id = c.channel_id
+            (SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id)
+            + (SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm_o
+               WHERE wm_o.workspace_id = c.workspace_id
+                 AND wm_o.is_owner = true
+                 AND NOT EXISTS (
+                   SELECT 1 FROM ${tables.channelMembers} cm2
+                   WHERE cm2.channel_id = c.channel_id AND cm2.user_id = wm_o.user_id
+                 ))
           )
         END AS "memberCount",
         (
@@ -129,14 +134,26 @@ const buildChannelDetail = async (
   let currentUser: CurrentUserMembership = null;
   if (userId !== undefined) {
     const memberRow = await query(
-      `SELECT is_admin FROM ${tables.channelMembers}
-       WHERE channel_id = $1 AND user_id = $2 LIMIT 1`,
+      `SELECT
+         cm.is_admin      AS cm_is_admin,
+         wm.is_owner      AS wm_is_owner
+       FROM ${tables.channels} c
+       LEFT JOIN ${tables.channelMembers} cm
+         ON cm.channel_id = c.channel_id AND cm.user_id = $2
+       LEFT JOIN ${tables.workspaceMembers} wm
+         ON wm.workspace_id = c.workspace_id AND wm.user_id = $2
+       WHERE c.channel_id = $1
+       LIMIT 1`,
       [channelId, userId],
     );
-    currentUser =
-      memberRow.rows.length > 0
-        ? { isMember: true, isAdmin: Boolean(memberRow.rows[0].is_admin) }
+    if (memberRow.rows.length > 0) {
+      const row = memberRow.rows[0];
+      const isChannelMember = row.cm_is_admin !== null;
+      const isWorkspaceOwner = Boolean(row.wm_is_owner);
+      currentUser = (isChannelMember || isWorkspaceOwner)
+        ? { isMember: true, isAdmin: isChannelMember ? Boolean(row.cm_is_admin) : true }
         : { isMember: false, isAdmin: false };
+    }
   }
 
   return {
@@ -160,17 +177,35 @@ const createMessageForSchema = async (
         c.channel_id AS id,
         c.workspace_id AS "workspaceId",
         c.channel_type AS type,
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-        ) AS "memberCount",
+        CASE
+          WHEN LOWER(c.channel_type) = 'public' THEN (
+            SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm
+            WHERE wm.workspace_id = c.workspace_id
+          )
+          ELSE (
+            (SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id)
+            + (SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm_o
+               WHERE wm_o.workspace_id = c.workspace_id
+                 AND wm_o.is_owner = true
+                 AND NOT EXISTS (
+                   SELECT 1 FROM ${tables.channelMembers} cm2
+                   WHERE cm2.channel_id = c.channel_id AND cm2.user_id = wm_o.user_id
+                 ))
+          )
+        END AS "memberCount",
         EXISTS (
           SELECT 1
           FROM ${tables.workspaceMembers} wm
           WHERE wm.workspace_id = c.workspace_id
             AND wm.user_id = $2
         ) AS "isWorkspaceMember",
+        EXISTS (
+          SELECT 1
+          FROM ${tables.workspaceMembers} wm
+          WHERE wm.workspace_id = c.workspace_id
+            AND wm.user_id = $2
+            AND wm.is_owner = true
+        ) AS "isWorkspaceOwner",
         EXISTS (
           SELECT 1
           FROM ${tables.channelMembers} cm
@@ -193,6 +228,7 @@ const createMessageForSchema = async (
     workspaceId: number;
     memberCount: number;
     isWorkspaceMember: boolean;
+    isWorkspaceOwner: boolean;
     isChannelMember: boolean;
   };
 
@@ -201,7 +237,7 @@ const createMessageForSchema = async (
   }
 
   const isPublicChannel = accessRow.type === "public";
-  const canPost = accessRow.isChannelMember || isPublicChannel;
+  const canPost = accessRow.isChannelMember || isPublicChannel || accessRow.isWorkspaceOwner;
 
   if (!canPost) {
     return { status: "forbidden_channel" as const };
@@ -286,6 +322,144 @@ const createMessageForSchema = async (
     } as MessageRow,
   };
 };
+
+// PATCH — workspace admin or owner updates channel name and/or type
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ channelId: string }> },
+) {
+  try {
+    const { channelId: channelIdParam } = await context.params;
+    const channelId = parseChannelId(channelIdParam);
+    if (channelId === null) {
+      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+    const body = await request.json().catch(() => ({}));
+    const newName: string | undefined = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const newType: string | undefined = body?.type;
+
+    if (!newName && !newType) {
+      return NextResponse.json({ error: "Provide name or type to update" }, { status: 400 });
+    }
+    if (newName !== undefined && newName.length === 0) {
+      return NextResponse.json({ error: "Channel name cannot be empty" }, { status: 400 });
+    }
+    if (newType !== undefined && newType !== "public" && newType !== "private") {
+      return NextResponse.json({ error: "type must be 'public' or 'private'" }, { status: 400 });
+    }
+
+    const channelRow = await query(
+      `SELECT workspace_id, channel_type FROM channels WHERE channel_id = $1 LIMIT 1`,
+      [channelId],
+    );
+    if (channelRow.rows.length === 0) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+    const workspaceId: number = channelRow.rows[0].workspace_id;
+    const currentType: string = channelRow.rows[0].channel_type;
+
+    const memberRow = await query(
+      `SELECT is_admin, is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
+      return NextResponse.json({ error: "Only workspace admins can update channels" }, { status: 403 });
+    }
+
+    // Rename
+    if (newName) {
+      await query(`UPDATE channels SET name = $1 WHERE channel_id = $2`, [newName, channelId]);
+    }
+
+    // Change type
+    if (newType && newType !== currentType.toLowerCase()) {
+      if (newType === "private") {
+        await query("BEGIN");
+        try {
+          await query(
+            `INSERT INTO channel_members (channel_id, user_id, is_admin)
+             SELECT $1, wm.user_id, false
+             FROM workspace_members wm
+             WHERE wm.workspace_id = $2
+               AND NOT EXISTS (
+                 SELECT 1 FROM channel_members cm
+                 WHERE cm.channel_id = $1 AND cm.user_id = wm.user_id
+               )`,
+            [channelId, workspaceId],
+          );
+          await query(`UPDATE channels SET channel_type = 'private' WHERE channel_id = $1`, [channelId]);
+          await query("COMMIT");
+        } catch (err) {
+          await query("ROLLBACK");
+          throw err;
+        }
+      } else {
+        await query(`UPDATE channels SET channel_type = 'public' WHERE channel_id = $1`, [channelId]);
+      }
+    }
+
+    return NextResponse.json({ success: true, name: newName, type: newType ?? currentType });
+  } catch (error) {
+    console.error("PATCH CHANNEL ERROR:", error);
+    return NextResponse.json({ error: "Failed to update channel" }, { status: 500 });
+  }
+}
+
+// DELETE — workspace admin or owner deletes the channel entirely
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ channelId: string }> },
+) {
+  try {
+    const { channelId: channelIdParam } = await context.params;
+    const channelId = parseChannelId(channelIdParam);
+    if (channelId === null) {
+      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+
+    // Resolve the channel's workspace
+    const channelRow = await query(
+      `SELECT workspace_id FROM channels WHERE channel_id = $1 LIMIT 1`,
+      [channelId],
+    );
+    if (channelRow.rows.length === 0) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+    const workspaceId: number = channelRow.rows[0].workspace_id;
+
+    // Only workspace admins or owners may delete channels
+    const memberRow = await query(
+      `SELECT is_admin, is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || !memberRow.rows[0].is_admin) {
+      return NextResponse.json({ error: "Only workspace admins can delete channels" }, { status: 403 });
+    }
+
+    await query(`DELETE FROM channels WHERE channel_id = $1`, [channelId]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE CHANNEL ERROR:", error);
+    return NextResponse.json({ error: "Failed to delete channel" }, { status: 500 });
+  }
+}
 
 export async function GET(
   request: Request,

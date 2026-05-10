@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 import { useWorkspace } from "@/context/WorkspaceContext";
 
 const WorkspaceInvitationForm = () => {
@@ -33,14 +34,14 @@ const WorkspaceInvitationForm = () => {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Invitation sent!");
+        toast.success("Invitation sent!");
         setIdentifier("");
       } else {
-        alert(data.error || "Failed to send invitation");
+        toast.error(data.error || "Failed to send invitation");
       }
     } catch (error) {
       console.error(error);
-      alert("Failed to send invitation");
+      toast.error("Failed to send invitation");
     } finally {
       setLoading(false);
     }

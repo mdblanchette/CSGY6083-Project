@@ -106,14 +106,14 @@ export async function POST(
       );
     }
 
-    // Only workspace admins can invite users
+    // Only workspace admins or owners can invite users
     const adminCheck = await query(
       `
         SELECT 1
         FROM workspace_members
         WHERE workspace_id = $1
           AND user_id = $2
-          AND is_admin = true
+          AND (is_admin = true OR is_owner = true)
         LIMIT 1
       `,
       [workspaceId, inviterId],

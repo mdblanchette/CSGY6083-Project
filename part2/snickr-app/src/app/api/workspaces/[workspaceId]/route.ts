@@ -108,9 +108,14 @@ const buildSummary = async (
             WHERE wm.workspace_id = c.workspace_id
           )
           ELSE (
-            SELECT COUNT(*)::int
-            FROM ${tables.channelMembers} cm
-            WHERE cm.channel_id = c.channel_id
+            (SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id)
+            + (SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm_o
+               WHERE wm_o.workspace_id = c.workspace_id
+                 AND wm_o.is_owner = true
+                 AND NOT EXISTS (
+                   SELECT 1 FROM ${tables.channelMembers} cm2
+                   WHERE cm2.channel_id = c.channel_id AND cm2.user_id = wm_o.user_id
+                 ))
           )
         END AS "memberCount",
         (
@@ -127,6 +132,13 @@ const buildSummary = async (
             FROM ${tables.channelMembers} cm
             WHERE cm.channel_id = c.channel_id
               AND cm.user_id = $2
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM ${tables.workspaceMembers} wm_owner
+            WHERE wm_owner.workspace_id = c.workspace_id
+              AND wm_owner.user_id = $2
+              AND wm_owner.is_owner = true
           )
         )
       ORDER BY c.created_at ASC
@@ -159,6 +171,86 @@ const buildSummary = async (
     members: membersResult.rows,
   } as WorkspaceSummary;
 };
+
+// PATCH — workspace admin or owner renames the workspace
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId: workspaceIdParam } = await context.params;
+    const workspaceId = parseWorkspaceId(workspaceIdParam);
+    if (workspaceId === null) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+    const body = await request.json().catch(() => ({}));
+    const newName = typeof body?.name === "string" ? body.name.trim() : "";
+
+    if (!newName) {
+      return NextResponse.json({ error: "Workspace name cannot be empty" }, { status: 400 });
+    }
+
+    const memberRow = await query(
+      `SELECT is_admin, is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
+      return NextResponse.json({ error: "Only workspace admins can rename the workspace" }, { status: 403 });
+    }
+
+    await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [newName, workspaceId]);
+
+    return NextResponse.json({ success: true, name: newName });
+  } catch (error) {
+    console.error("PATCH WORKSPACE ERROR:", error);
+    return NextResponse.json({ error: "Failed to rename workspace" }, { status: 500 });
+  }
+}
+
+// DELETE — workspace owner deletes the entire workspace
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId: workspaceIdParam } = await context.params;
+    const workspaceId = parseWorkspaceId(workspaceIdParam);
+    if (workspaceId === null) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+
+    const memberRow = await query(
+      `SELECT is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || !memberRow.rows[0].is_owner) {
+      return NextResponse.json({ error: "Only workspace owners can delete a workspace" }, { status: 403 });
+    }
+
+    await query(`DELETE FROM workspaces WHERE workspace_id = $1`, [workspaceId]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE WORKSPACE ERROR:", error);
+    return NextResponse.json({ error: "Failed to delete workspace" }, { status: 500 });
+  }
+}
 
 export async function GET(
   _request: Request,

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 import { useWorkspace } from "@/context/WorkspaceContext";
 
 const CreateWorkspaceCard = () => {
@@ -20,7 +21,7 @@ const create = async () => {
   const trimmedDescription = description.trim();
 
   if (!trimmedName) {
-    alert("Workspace name is required");
+    toast.error("Workspace name is required");
     return;
   }
 
@@ -49,14 +50,14 @@ const create = async () => {
         selectWorkspace(data.id);
       }
 
-      alert("Workspace created successfully");
+      toast.success("Workspace created successfully");
     } else {
-      alert(data.error || "Failed to create workspace");
+      toast.error(data.error || "Failed to create workspace");
       console.error("Create failed:", data);
     }
   } catch (err) {
     console.error(err);
-    alert("Failed to create workspace");
+    toast.error("Failed to create workspace");
   } finally {
     setLoading(false);
   }

@@ -81,16 +81,6 @@ export async function POST(
       return NextResponse.json({ error: "Username or email is required" }, { status: 400 });
     }
 
-    // Only channel admins can invite
-    const adminCheck = await query(
-      `SELECT 1 FROM channel_members
-       WHERE channel_id = $1 AND user_id = $2 AND is_admin = true LIMIT 1`,
-      [channelId, inviterId],
-    );
-    if (adminCheck.rows.length === 0) {
-      return NextResponse.json({ error: "Only channel admins can invite users" }, { status: 403 });
-    }
-
     // Get workspace_id for the channel so we can check workspace membership
     const channelRow = await query(
       `SELECT workspace_id, channel_type FROM channels WHERE channel_id = $1 LIMIT 1`,
@@ -100,6 +90,20 @@ export async function POST(
       return NextResponse.json({ error: "Channel not found" }, { status: 404 });
     }
     const { workspace_id: workspaceId } = channelRow.rows[0];
+
+    // Channel admins OR workspace admins/owners can invite
+    const adminCheck = await query(
+      `SELECT 1 FROM channel_members
+       WHERE channel_id = $1 AND user_id = $2 AND is_admin = true
+       UNION
+       SELECT 1 FROM workspace_members
+       WHERE workspace_id = $3 AND user_id = $2 AND (is_admin = true OR is_owner = true)
+       LIMIT 1`,
+      [channelId, inviterId, workspaceId],
+    );
+    if (adminCheck.rows.length === 0) {
+      return NextResponse.json({ error: "Only channel or workspace admins can invite users" }, { status: 403 });
+    }
 
     // Find invitee by username or email
     const inviteeResult = await query(
