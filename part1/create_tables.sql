@@ -15,6 +15,7 @@ CREATE TABLE Users (
 	username	VARCHAR(50)  NOT NULL UNIQUE,
 	nickname	VARCHAR(50) DEFAULT '',
 	password_hash	VARCHAR(255) NOT NULL,
+	status_emoji TEXT,
 	status_text	VARCHAR(100) DEFAULT '',
 	bio		VARCHAR(500) DEFAULT '',
 	last_active	TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

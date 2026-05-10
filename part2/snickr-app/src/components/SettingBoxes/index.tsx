@@ -218,10 +218,10 @@ const SettingBoxes = () => {
                   onChange={handleChange}
                 >
                   <option value="">Select Status</option>
-                  <option value="">Online</option>
-                  <option value="">Idle</option>
-                  <option value="">Do Not Disturb</option>
-                  <option value="">Offline</option>
+                  <option value="🟢">Available</option>
+                  <option value="🟡">Away</option>
+                  <option value="🔴">Do Not Disturb</option>
+                  <option value="⚫">Offline</option>
                 </select>
               </div>
             </div>

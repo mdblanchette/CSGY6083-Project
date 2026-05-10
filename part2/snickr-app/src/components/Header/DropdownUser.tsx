@@ -67,7 +67,14 @@ const DropdownUser = () => {
                 {initial}
               </span>
 
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green dark:border-gray-dark"></span>
+              <span
+                className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
+                  session?.user?.status_emoji === "🟢" ? "bg-green"
+                  : session?.user?.status_emoji === "🟡" ? "bg-yellow-400"
+                  : session?.user?.status_emoji === "🔴" ? "bg-red"
+                  : "bg-gray-400"
+                  }`}
+                  ></span>
             </span>
 
             <span className="block">

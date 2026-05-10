@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { email, nickname, username, status_emoji, status_text, bio } = body;
+ // const { email, nickname, username, status_text, bio } = body;
+ const { email, nickname, username, status_emoji, status_text, bio } = body;
 
   const session = await getServerSession(authOptions);
   const updateData: { [key: string]: any } = {};
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
     updateData.bio = bio;
   }
 
+  //updateData.last_active = new Date();
+
   if (isDemo) {
     return new NextResponse(JSON.stringify("Can't update demo user"), {
       status: 401,
@@ -58,27 +61,34 @@ export async function POST(request: Request) {
       },
       data: {
         ...updateData,
+        last_active: new Date(),
       },
     });
 
-    revalidatePath("/user");
+    revalidatePath("/profile");
 
     return NextResponse.json(
-      {
-        email: user.email,
-        nickname: user.nickname,
-        username: user.username,
-        status_emoji: user.status_emoji,
-        status_text: user.status_text,
-        bio: user.bio,
-      },
-      { status: 200 },
-    );
+  {
+    email: user.email,
+    nickname: user.nickname,
+    username: user.username,
+    status_emoji: user.status_emoji,
+    status_text: user.status_text,
+    bio: user.bio,
+    last_active: user.last_active,
+    created_at: user.created_at,
+  },
+  { status: 200 },
+);
 
     // return new NextResponse(JSON.stringify("User Updated Successfully!"), {
     // 	status: 200,
     // });
   } catch (error) {
-    return new NextResponse("Something went wrong", { status: 500 });
-  }
+  console.error("PROFILE UPDATE ERROR:", error);
+  return NextResponse.json(
+    { error: String(error) },
+    { status: 500 }
+  );
+}
 }
