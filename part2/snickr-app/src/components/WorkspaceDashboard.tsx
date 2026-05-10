@@ -105,6 +105,12 @@ const WorkspaceDashboard = () => {
   const [editingChannelName, setEditingChannelName] = useState(false);
   const [channelNameInput, setChannelNameInput] = useState("");
   const [savingChannelName, setSavingChannelName] = useState(false);
+  const [editingWorkspaceDesc, setEditingWorkspaceDesc] = useState(false);
+  const [workspaceDescInput, setWorkspaceDescInput] = useState("");
+  const [savingWorkspaceDesc, setSavingWorkspaceDesc] = useState(false);
+  const [editingChannelDesc, setEditingChannelDesc] = useState(false);
+  const [channelDescInput, setChannelDescInput] = useState("");
+  const [savingChannelDesc, setSavingChannelDesc] = useState(false);
   const [memberActionId, setMemberActionId] = useState<number | null>(null);
 
   // ── Data loading ─────────────────────────────────────────────────────────
@@ -313,6 +319,59 @@ const WorkspaceDashboard = () => {
       toast.error("Failed to rename channel");
     } finally {
       setSavingChannelName(false);
+    }
+  };
+
+  const handleSaveWorkspaceDesc = async () => {
+    if (!activeWorkspaceId) return;
+    setSavingWorkspaceDesc(true);
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: workspaceDescInput.trim() || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Description updated.");
+        setSummary((prev) =>
+          prev ? { ...prev, workspace: { ...prev.workspace, description: workspaceDescInput.trim() || null } } : prev,
+        );
+        setEditingWorkspaceDesc(false);
+      } else {
+        toast.error(data.error || "Failed to update description");
+      }
+    } catch {
+      toast.error("Failed to update description");
+    } finally {
+      setSavingWorkspaceDesc(false);
+    }
+  };
+
+  const handleSaveChannelDesc = async () => {
+    if (!selectedChannelId || !channelDetail) return;
+    setSavingChannelDesc(true);
+    try {
+      const res = await fetch(`/api/channels/${selectedChannelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: channelDescInput.trim() || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Description updated.");
+        setChannelDetail((prev) =>
+          prev ? { ...prev, channel: { ...prev.channel, description: channelDescInput.trim() || null } } : prev,
+        );
+        reloadSummary();
+        setEditingChannelDesc(false);
+      } else {
+        toast.error(data.error || "Failed to update description");
+      }
+    } catch {
+      toast.error("Failed to update description");
+    } finally {
+      setSavingChannelDesc(false);
     }
   };
 
@@ -590,7 +649,44 @@ const WorkspaceDashboard = () => {
               )}
             </div>
           )}
-          {channelDetail.channel.description && <p className="mt-2 text-dark-4 dark:text-dark-6">{channelDetail.channel.description}</p>}
+          {editingChannelDesc ? (
+            <div className="mt-2 flex flex-col gap-2">
+              <textarea
+                autoFocus
+                rows={2}
+                value={channelDescInput}
+                onChange={(e) => setChannelDescInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") setEditingChannelDesc(false); }}
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm text-dark outline-none focus:border-primary dark:border-stroke-dark dark:text-white"
+                placeholder="Add a description…"
+              />
+              <div className="flex gap-2">
+                <button onClick={handleSaveChannelDesc} disabled={savingChannelDesc}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">
+                  {savingChannelDesc ? "Saving…" : "Save"}
+                </button>
+                <button onClick={() => setEditingChannelDesc(false)}
+                  className="rounded-lg border border-stroke px-3 py-1.5 text-xs text-dark-4 dark:border-stroke-dark dark:text-dark-6">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-start gap-1.5">
+              <p className="text-sm text-dark-4 dark:text-dark-6">
+                {channelDetail.channel.description || ((isWorkspaceAdmin || isWorkspaceOwner) ? <span className="italic">No description</span> : null)}
+              </p>
+              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+                <button
+                  onClick={() => { setChannelDescInput(channelDetail.channel.description ?? ""); setEditingChannelDesc(true); }}
+                  className="mt-0.5 shrink-0 text-dark-4 transition hover:text-primary dark:text-dark-6"
+                  title="Edit description"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              )}
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
               {channelDetail.channel.type}
@@ -722,7 +818,44 @@ const WorkspaceDashboard = () => {
             )}
           </div>
         )}
-        {summary.workspace.description && <p className="mt-2 text-dark-4 dark:text-dark-6">{summary.workspace.description}</p>}
+        {editingWorkspaceDesc ? (
+          <div className="mt-2 flex flex-col gap-2">
+            <textarea
+              autoFocus
+              rows={2}
+              value={workspaceDescInput}
+              onChange={(e) => setWorkspaceDescInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setEditingWorkspaceDesc(false); }}
+              className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm text-dark outline-none focus:border-primary dark:border-stroke-dark dark:text-white"
+              placeholder="Add a description…"
+            />
+            <div className="flex gap-2">
+              <button onClick={handleSaveWorkspaceDesc} disabled={savingWorkspaceDesc}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">
+                {savingWorkspaceDesc ? "Saving…" : "Save"}
+              </button>
+              <button onClick={() => setEditingWorkspaceDesc(false)}
+                className="rounded-lg border border-stroke px-3 py-1.5 text-xs text-dark-4 dark:border-stroke-dark dark:text-dark-6">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 flex items-start gap-1.5">
+            <p className="text-sm text-dark-4 dark:text-dark-6">
+              {summary.workspace.description || ((isWorkspaceAdmin || isWorkspaceOwner) ? <span className="italic">No description</span> : null)}
+            </p>
+            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              <button
+                onClick={() => { setWorkspaceDescInput(summary.workspace.description ?? ""); setEditingWorkspaceDesc(true); }}
+                className="mt-0.5 shrink-0 text-dark-4 transition hover:text-primary dark:text-dark-6"
+                title="Edit description"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
+          </div>
+        )}
         <p className="mt-3 text-xs text-dark-4 dark:text-dark-6">
           Created {new Date(summary.workspace.createdAt).toLocaleDateString()}
         </p>

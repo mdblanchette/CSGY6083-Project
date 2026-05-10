@@ -342,11 +342,20 @@ export async function PATCH(
 
     const userId = Number(session.user.id);
     const body = await request.json().catch(() => ({}));
-    const newName: string | undefined = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const rawName = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const newName: string | undefined = rawName;
     const newType: string | undefined = body?.type;
+    const newDescription: string | null | undefined =
+      "description" in body
+        ? body.description === null
+          ? null
+          : typeof body.description === "string"
+          ? body.description.trim()
+          : undefined
+        : undefined;
 
-    if (!newName && !newType) {
-      return NextResponse.json({ error: "Provide name or type to update" }, { status: 400 });
+    if (!newName && !newType && newDescription === undefined) {
+      return NextResponse.json({ error: "Provide name, type, or description to update" }, { status: 400 });
     }
     if (newName !== undefined && newName.length === 0) {
       return NextResponse.json({ error: "Channel name cannot be empty" }, { status: 400 });
@@ -379,6 +388,11 @@ export async function PATCH(
       await query(`UPDATE channels SET name = $1 WHERE channel_id = $2`, [newName, channelId]);
     }
 
+    // Update description
+    if (newDescription !== undefined) {
+      await query(`UPDATE channels SET description = $1 WHERE channel_id = $2`, [newDescription, channelId]);
+    }
+
     // Change type
     if (newType && newType !== currentType.toLowerCase()) {
       if (newType === "private") {
@@ -406,7 +420,7 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ success: true, name: newName, type: newType ?? currentType });
+    return NextResponse.json({ success: true, name: newName, type: newType ?? currentType, description: newDescription });
   } catch (error) {
     console.error("PATCH CHANNEL ERROR:", error);
     return NextResponse.json({ error: "Failed to update channel" }, { status: 500 });

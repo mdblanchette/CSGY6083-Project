@@ -191,10 +191,21 @@ export async function PATCH(
 
     const userId = Number(session.user.id);
     const body = await request.json().catch(() => ({}));
-    const newName = typeof body?.name === "string" ? body.name.trim() : "";
+    const rawName = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const newDescription: string | null | undefined =
+      "description" in body
+        ? body.description === null
+          ? null
+          : typeof body.description === "string"
+          ? body.description.trim()
+          : undefined
+        : undefined;
 
-    if (!newName) {
+    if (rawName === "") {
       return NextResponse.json({ error: "Workspace name cannot be empty" }, { status: 400 });
+    }
+    if (rawName === undefined && newDescription === undefined) {
+      return NextResponse.json({ error: "Provide name or description to update" }, { status: 400 });
     }
 
     const memberRow = await query(
@@ -203,12 +214,17 @@ export async function PATCH(
       [workspaceId, userId],
     );
     if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
-      return NextResponse.json({ error: "Only workspace admins can rename the workspace" }, { status: 403 });
+      return NextResponse.json({ error: "Only workspace admins can update the workspace" }, { status: 403 });
     }
 
-    await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [newName, workspaceId]);
+    if (rawName) {
+      await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [rawName, workspaceId]);
+    }
+    if (newDescription !== undefined) {
+      await query(`UPDATE workspaces SET description = $1 WHERE workspace_id = $2`, [newDescription, workspaceId]);
+    }
 
-    return NextResponse.json({ success: true, name: newName });
+    return NextResponse.json({ success: true, name: rawName, description: newDescription });
   } catch (error) {
     console.error("PATCH WORKSPACE ERROR:", error);
     return NextResponse.json({ error: "Failed to rename workspace" }, { status: 500 });
