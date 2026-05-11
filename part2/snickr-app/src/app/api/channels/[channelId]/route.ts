@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { query } from "@/libs/db";
 import { getAuthSession } from "@/libs/auth";
+import { query } from "@/libs/db";
+import {
+  addChannelMembership,
+  resolveChannelAccess,
+} from "@/libs/channel-access";
 
 export const runtime = "nodejs";
 
@@ -34,6 +38,33 @@ type MessageRow = {
 const parseChannelId = (value: string) => {
   const channelId = Number.parseInt(value, 10);
   return Number.isFinite(channelId) ? channelId : null;
+};
+
+const resolveAccessForUser = async (channelId: number, userId: number) => {
+  let schema: "lower" | "upper" = "lower";
+  let access: Awaited<ReturnType<typeof resolveChannelAccess>> = null;
+
+  try {
+    access = await resolveChannelAccess(channelId, userId, schema);
+  } catch (error: any) {
+    if (error?.code !== "42P01") {
+      throw error;
+    }
+  }
+
+  if (!access) {
+    schema = "upper";
+
+    try {
+      access = await resolveChannelAccess(channelId, userId, schema);
+    } catch (error: any) {
+      if (error?.code !== "42P01") {
+        throw error;
+      }
+    }
+  }
+
+  return { access, schema };
 };
 
 const getTables = (schema: "lower" | "upper") => {
@@ -119,81 +150,35 @@ const createMessageForSchema = async (
   messageBody: string,
   schema: "lower" | "upper",
 ) => {
-  const tables = getTables(schema);
-
-  const accessResult = await query(
-    `
-      SELECT
-        c.channel_id AS id,
-        c.channel_type AS type,
-        (
-          SELECT COUNT(*)::int
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-        ) AS "memberCount",
-        EXISTS (
-          SELECT 1
-          FROM ${tables.workspaceMembers} wm
-          WHERE wm.workspace_id = c.workspace_id
-            AND wm.user_id = $2
-        ) AS "isWorkspaceMember",
-        EXISTS (
-          SELECT 1
-          FROM ${tables.channelMembers} cm
-          WHERE cm.channel_id = c.channel_id
-            AND cm.user_id = $2
-        ) AS "isChannelMember"
-      FROM ${tables.channels} c
-      WHERE c.channel_id = $1
-      LIMIT 1
-    `,
-    [channelId, userId],
+  const { access, schema: resolvedSchema } = await resolveAccessForUser(
+    channelId,
+    userId,
   );
 
-  if (accessResult.rows.length === 0) {
+  const tables = getTables(resolvedSchema);
+
+  if (!access) {
     return { status: "not_found" as const };
   }
 
-  const accessRow = accessResult.rows[0] as {
-    type: string;
-    memberCount: number;
-    isWorkspaceMember: boolean;
-    isChannelMember: boolean;
-  };
+  if (!access.canView) {
+    if (!access.isWorkspaceMember) {
+      return { status: "forbidden_workspace" as const };
+    }
 
-  if (!accessRow.isWorkspaceMember) {
-    return { status: "forbidden_workspace" as const };
-  }
-
-  const isPublicChannel = accessRow.type === "public";
-  const canPost = accessRow.isChannelMember || isPublicChannel;
-
-  if (!canPost) {
     return { status: "forbidden_channel" as const };
   }
 
-  let memberCount = accessRow.memberCount;
+  if (access.shouldAutoJoin) {
+    try {
+      await addChannelMembership(channelId, userId, resolvedSchema);
+    } catch (error: any) {
+      if (error?.code !== "42P01") {
+        throw error;
+      }
 
-  if (!accessRow.isChannelMember && isPublicChannel) {
-    await query(
-      `
-        INSERT INTO ${tables.channelMembers} (channel_id, user_id, is_admin)
-        VALUES ($1, $2, false)
-        ON CONFLICT (channel_id, user_id) DO NOTHING
-      `,
-      [channelId, userId],
-    );
-
-    const memberCountResult = await query(
-      `
-        SELECT COUNT(*)::int AS count
-        FROM ${tables.channelMembers}
-        WHERE channel_id = $1
-      `,
-      [channelId],
-    );
-
-    memberCount = (memberCountResult.rows[0] as { count: number }).count;
+      await addChannelMembership(channelId, userId, "upper");
+    }
   }
 
   const messageInsertResult = await query(
@@ -225,6 +210,17 @@ const createMessageForSchema = async (
     | { senderName: string | null; senderEmail: string | null }
     | undefined;
 
+  const memberCountResult = await query(
+    `
+      SELECT COUNT(*)::int AS count
+      FROM ${tables.channelMembers}
+      WHERE channel_id = $1
+    `,
+    [channelId],
+  );
+
+  const memberCount = (memberCountResult.rows[0] as { count: number }).count;
+
   return {
     status: "created" as const,
     channelId,
@@ -252,6 +248,41 @@ export async function GET(
         { error: "Invalid channel id" },
         { status: 400 },
       );
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number.parseInt(session.user.id, 10);
+    if (!Number.isFinite(userId)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { access, schema } = await resolveAccessForUser(channelId, userId);
+
+    if (!access) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+
+    if (!access.canView) {
+      return NextResponse.json(
+        { error: "You do not have access to this channel" },
+        { status: 403 },
+      );
+    }
+
+    if (access.shouldAutoJoin) {
+      try {
+        await addChannelMembership(channelId, userId, schema);
+      } catch (error: any) {
+        if (error?.code !== "42P01") {
+          throw error;
+        }
+
+        await addChannelMembership(channelId, userId, "upper");
+      }
     }
 
     let detail = null;
