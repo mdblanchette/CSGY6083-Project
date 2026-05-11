@@ -309,7 +309,10 @@ export async function PATCH(
     const { channelId: channelIdParam } = await context.params;
     const channelId = parseChannelId(channelIdParam);
     if (channelId === null) {
-      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid channel id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -319,7 +322,8 @@ export async function PATCH(
 
     const userId = Number(session.user.id);
     const body = await request.json().catch(() => ({}));
-    const rawName = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const rawName =
+      typeof body?.name === "string" ? body.name.trim() : undefined;
     const newName: string | undefined = rawName;
     const newType: string | undefined = body?.type;
     const newDescription: string | null | undefined =
@@ -327,18 +331,31 @@ export async function PATCH(
         ? body.description === null
           ? null
           : typeof body.description === "string"
-          ? body.description.trim()
-          : undefined
+            ? body.description.trim()
+            : undefined
         : undefined;
 
     if (!newName && !newType && newDescription === undefined) {
-      return NextResponse.json({ error: "Provide name, type, or description to update" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provide name, type, or description to update" },
+        { status: 400 },
+      );
     }
     if (newName !== undefined && newName.length === 0) {
-      return NextResponse.json({ error: "Channel name cannot be empty" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Channel name cannot be empty" },
+        { status: 400 },
+      );
     }
-    if (newType !== undefined && newType !== "public" && newType !== "private") {
-      return NextResponse.json({ error: "type must be 'public' or 'private'" }, { status: 400 });
+    if (
+      newType !== undefined &&
+      newType !== "public" &&
+      newType !== "private"
+    ) {
+      return NextResponse.json(
+        { error: "type must be 'public' or 'private'" },
+        { status: 400 },
+      );
     }
 
     const channelRow = await query(
@@ -352,7 +369,10 @@ export async function PATCH(
     const currentType: string = channelRow.rows[0].channel_type;
 
     if (newType !== undefined && currentType.toLowerCase() === "direct") {
-      return NextResponse.json({ error: "Direct channel type cannot be changed" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Direct channel type cannot be changed" },
+        { status: 400 },
+      );
     }
 
     const memberRow = await query(
@@ -360,18 +380,30 @@ export async function PATCH(
        WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
       [workspaceId, userId],
     );
-    if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
-      return NextResponse.json({ error: "Only workspace admins can update channels" }, { status: 403 });
+    if (
+      memberRow.rows.length === 0 ||
+      (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)
+    ) {
+      return NextResponse.json(
+        { error: "Only workspace admins can update channels" },
+        { status: 403 },
+      );
     }
 
     // Rename
     if (newName) {
-      await query(`UPDATE channels SET name = $1 WHERE channel_id = $2`, [newName, channelId]);
+      await query(`UPDATE channels SET name = $1 WHERE channel_id = $2`, [
+        newName,
+        channelId,
+      ]);
     }
 
     // Update description
     if (newDescription !== undefined) {
-      await query(`UPDATE channels SET description = $1 WHERE channel_id = $2`, [newDescription, channelId]);
+      await query(
+        `UPDATE channels SET description = $1 WHERE channel_id = $2`,
+        [newDescription, channelId],
+      );
     }
 
     // Change type
@@ -390,21 +422,35 @@ export async function PATCH(
                )`,
             [channelId, workspaceId],
           );
-          await query(`UPDATE channels SET channel_type = 'private' WHERE channel_id = $1`, [channelId]);
+          await query(
+            `UPDATE channels SET channel_type = 'private' WHERE channel_id = $1`,
+            [channelId],
+          );
           await query("COMMIT");
         } catch (err) {
           await query("ROLLBACK");
           throw err;
         }
       } else {
-        await query(`UPDATE channels SET channel_type = 'public' WHERE channel_id = $1`, [channelId]);
+        await query(
+          `UPDATE channels SET channel_type = 'public' WHERE channel_id = $1`,
+          [channelId],
+        );
       }
     }
 
-    return NextResponse.json({ success: true, name: newName, type: newType ?? currentType, description: newDescription });
+    return NextResponse.json({
+      success: true,
+      name: newName,
+      type: newType ?? currentType,
+      description: newDescription,
+    });
   } catch (error) {
     console.error("PATCH CHANNEL ERROR:", error);
-    return NextResponse.json({ error: "Failed to update channel" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update channel" },
+      { status: 500 },
+    );
   }
 }
 
@@ -419,7 +465,10 @@ export async function DELETE(
     const { channelId: channelIdParam } = await context.params;
     const channelId = parseChannelId(channelIdParam);
     if (channelId === null) {
-      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid channel id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -447,7 +496,10 @@ export async function DELETE(
       [workspaceId, userId],
     );
     if (memberRow.rows.length === 0) {
-      return NextResponse.json({ error: "You are not a member of this workspace" }, { status: 403 });
+      return NextResponse.json(
+        { error: "You are not a member of this workspace" },
+        { status: 403 },
+      );
     }
 
     const isAdmin: boolean = memberRow.rows[0].is_admin;
@@ -473,7 +525,10 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE CHANNEL ERROR:", error);
-    return NextResponse.json({ error: "Failed to delete channel" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete channel" },
+      { status: 500 },
+    );
   }
 }
 

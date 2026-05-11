@@ -9,8 +9,13 @@ import PendingWorkspaceInvites from "./PendingWorkspaceInvites";
 const WorkspaceDropdown = () => {
   const router = useRouter();
 
-  const { openCreateCard, closeCreateCard, workspaces, activeWorkspace, selectWorkspace } =
-    useWorkspace();
+  const {
+    openCreateCard,
+    closeCreateCard,
+    workspaces,
+    activeWorkspace,
+    selectWorkspace,
+  } = useWorkspace();
 
   const [open, setOpen] = useState(false);
 
@@ -68,9 +73,7 @@ const WorkspaceDropdown = () => {
                         <li key={workspace.id}>
                           <button
                             type="button"
-                            onClick={() =>
-                              handleWorkspaceSelect(workspace.id)
-                            }
+                            onClick={() => handleWorkspaceSelect(workspace.id)}
                             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${
                               isActive
                                 ? "bg-primary/10 text-primary"

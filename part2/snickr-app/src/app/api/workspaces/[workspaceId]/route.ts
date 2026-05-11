@@ -5,6 +5,7 @@ import { getAuthSession } from "@/libs/auth";
 export const runtime = "nodejs";
 
 type WorkspaceSummary = {
+  currentUserId: number;
   workspace: {
     id: number;
     name: string;
@@ -152,6 +153,7 @@ const buildSummary = async (
   );
 
   return {
+    currentUserId: userId,
     workspace: workspaceResult.rows[0],
     channels: channelsResult.rows,
     members: membersResult.rows,
@@ -167,7 +169,10 @@ export async function PATCH(
     const { workspaceId: workspaceIdParam } = await context.params;
     const workspaceId = parseWorkspaceId(workspaceIdParam);
     if (workspaceId === null) {
-      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid workspace id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -177,21 +182,28 @@ export async function PATCH(
 
     const userId = Number(session.user.id);
     const body = await request.json().catch(() => ({}));
-    const rawName = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const rawName =
+      typeof body?.name === "string" ? body.name.trim() : undefined;
     const newDescription: string | null | undefined =
       "description" in body
         ? body.description === null
           ? null
           : typeof body.description === "string"
-          ? body.description.trim()
-          : undefined
+            ? body.description.trim()
+            : undefined
         : undefined;
 
     if (rawName === "") {
-      return NextResponse.json({ error: "Workspace name cannot be empty" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Workspace name cannot be empty" },
+        { status: 400 },
+      );
     }
     if (rawName === undefined && newDescription === undefined) {
-      return NextResponse.json({ error: "Provide name or description to update" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provide name or description to update" },
+        { status: 400 },
+      );
     }
 
     const memberRow = await query(
@@ -199,21 +211,40 @@ export async function PATCH(
        WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
       [workspaceId, userId],
     );
-    if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
-      return NextResponse.json({ error: "Only workspace admins can update the workspace" }, { status: 403 });
+    if (
+      memberRow.rows.length === 0 ||
+      (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)
+    ) {
+      return NextResponse.json(
+        { error: "Only workspace admins can update the workspace" },
+        { status: 403 },
+      );
     }
 
     if (rawName) {
-      await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [rawName, workspaceId]);
+      await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [
+        rawName,
+        workspaceId,
+      ]);
     }
     if (newDescription !== undefined) {
-      await query(`UPDATE workspaces SET description = $1 WHERE workspace_id = $2`, [newDescription, workspaceId]);
+      await query(
+        `UPDATE workspaces SET description = $1 WHERE workspace_id = $2`,
+        [newDescription, workspaceId],
+      );
     }
 
-    return NextResponse.json({ success: true, name: rawName, description: newDescription });
+    return NextResponse.json({
+      success: true,
+      name: rawName,
+      description: newDescription,
+    });
   } catch (error) {
     console.error("PATCH WORKSPACE ERROR:", error);
-    return NextResponse.json({ error: "Failed to rename workspace" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to rename workspace" },
+      { status: 500 },
+    );
   }
 }
 
@@ -226,7 +257,10 @@ export async function DELETE(
     const { workspaceId: workspaceIdParam } = await context.params;
     const workspaceId = parseWorkspaceId(workspaceIdParam);
     if (workspaceId === null) {
-      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid workspace id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -242,15 +276,23 @@ export async function DELETE(
       [workspaceId, userId],
     );
     if (memberRow.rows.length === 0 || !memberRow.rows[0].is_owner) {
-      return NextResponse.json({ error: "Only workspace owners can delete a workspace" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Only workspace owners can delete a workspace" },
+        { status: 403 },
+      );
     }
 
-    await query(`DELETE FROM workspaces WHERE workspace_id = $1`, [workspaceId]);
+    await query(`DELETE FROM workspaces WHERE workspace_id = $1`, [
+      workspaceId,
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE WORKSPACE ERROR:", error);
-    return NextResponse.json({ error: "Failed to delete workspace" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete workspace" },
+      { status: 500 },
+    );
   }
 }
 
@@ -307,10 +349,7 @@ export async function GET(
     }
 
     if (forbidden && !summary) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 },
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     if (!summary) {

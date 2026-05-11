@@ -9,17 +9,29 @@ interface ProfileBoxProps {
   onCoverFileChange: (f: File | undefined) => void;
 }
 
-const resolveImageUrl = (value: string | null | undefined, fallback: string) => {
+const resolveImageUrl = (
+  value: string | null | undefined,
+  fallback: string,
+) => {
   if (!value) return fallback;
   if (value.startsWith("http") || value.startsWith("/")) return value;
   return fallback;
 };
 
-const ProfileBox = ({ onProfileFileChange, onCoverFileChange }: ProfileBoxProps) => {
+const ProfileBox = ({
+  onProfileFileChange,
+  onCoverFileChange,
+}: ProfileBoxProps) => {
   const { data: session } = useSession();
 
-  const profilePic = resolveImageUrl(session?.user?.image, "/images/user/defaulticon.png");
-  const coverPic = resolveImageUrl(session?.user?.coverImage, "/images/cover/cover-01.png");
+  const profilePic = resolveImageUrl(
+    session?.user?.image,
+    "/images/user/defaulticon.png",
+  );
+  const coverPic = resolveImageUrl(
+    session?.user?.coverImage,
+    "/images/cover/cover-01.png",
+  );
 
   const [profilePreview, setProfilePreview] = useState<string>("");
   const [coverPreview, setCoverPreview] = useState<string>("");
