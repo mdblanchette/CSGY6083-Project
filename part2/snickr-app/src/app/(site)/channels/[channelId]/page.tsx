@@ -300,7 +300,7 @@ export default async function ChannelPage({
             </h2>
             <div className="mt-3 space-y-2">
               {data.channels.map((channel) => {
-                const isActive = channel.id === data.channel.id;
+                const isActive = channel.id === data?.channel?.id;
 
                 return (
                   <Link

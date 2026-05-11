@@ -9,29 +9,30 @@ import { getSignedURL } from "@/actions/upload";
 
 const ProfileBox = () => {
   const { data: session, update } = useSession();
+  const user = session?.user as any;
 
-  const profilePic = session?.user?.image
-    ? session?.user?.image.includes("http")
-      ? session?.user?.image
-      : `${process.env.NEXT_PUBLIC_IMAGE_URL}/${session?.user?.image}`
+  const profilePic = user?.image
+    ? user?.image.includes("http")
+      ? user?.image
+      : `${process.env.NEXT_PUBLIC_IMAGE_URL}/${user?.image}`
     : "/images/user/user-03.png";
 
-  const coverPic = session?.user?.coverImage
-    ? session?.user?.coverImage.includes("http")
-      ? session?.user?.coverImage
-      : `${process.env.NEXT_PUBLIC_COVER_IMAGE_URL}/${session?.user?.coverImage}`
+  const coverPic = user?.coverImage
+    ? user?.coverImage.includes("http")
+      ? user?.coverImage
+      : `${process.env.NEXT_PUBLIC_COVER_IMAGE_URL}/${user?.coverImage}`
     : "/images/cover/cover-01.png";
 
   const [data, setData] = useState({
-    name: (session?.user?.name as string) || "",
-    email: session?.user?.email || "",
+    name: (user?.name as string) || "",
+    email: user?.email || "",
     profilePhoto: profilePic,
     coverPhoto: coverPic,
   });
 
   const [file, setFile] = useState<File | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  const isDemo = session?.user?.email?.includes("demo-");
+  const isDemo = user?.email?.includes("demo-");
 
   const handleChange = (e: any) => {
     if (e.target.name === "profilePhoto") {
@@ -212,57 +213,48 @@ const ProfileBox = () => {
 
         <div className="mt-4 text-left">
           <h3 className="mb-1 text-heading-6 font-bold text-dark dark:text-white">
-            {session?.user?.username ||
-              session?.user?.nickname ||
-              data?.name ||
-              "User"}
+            {user?.username || user?.nickname || data?.name || "User"}
           </h3>
 
-          {(session?.user?.status_emoji || session?.user?.status_text) && (
+          {(user?.status_emoji || user?.status_text) && (
             <p className="text-body mb-2 text-sm">
-              {session?.user?.status_emoji} {session?.user?.status_text}
+              {user?.status_emoji} {user?.status_text}
             </p>
           )}
 
           <div className="mx-auto max-w-[720px]">
             <h4 className="font-medium text-dark dark:text-white">Bio</h4>
-            <p className="mt-2 text-sm">
-              {session?.user?.bio || "No bio provided."}
-            </p>
+            <p className="mt-2 text-sm">{user?.bio || "No bio provided."}</p>
           </div>
 
           <div className="mt-4 grid max-w-[720px] grid-cols-1 gap-2 text-sm text-dark dark:text-white">
             <div>
               <strong className="font-medium">Email: </strong>
-              <span className="ml-2 font-normal">
-                {session?.user?.email || "—"}
-              </span>
+              <span className="ml-2 font-normal">{user?.email || "—"}</span>
             </div>
             <div>
               <strong className="font-medium">Username: </strong>
               <span className="ml-2 font-normal">
-                {session?.user?.username || session?.user?.nickname || "—"}
+                {user?.username || user?.nickname || "—"}
               </span>
             </div>
             <div>
               <strong className="font-medium">Timezone: </strong>
-              <span className="ml-2 font-normal">
-                {session?.user?.timezone || "—"}
-              </span>
+              <span className="ml-2 font-normal">{user?.timezone || "—"}</span>
             </div>
             <div>
               <strong className="font-medium">Last active: </strong>
               <span className="ml-2 font-normal">
-                {session?.user?.last_active
-                  ? new Date(session.user.last_active).toLocaleString()
+                {user?.last_active
+                  ? new Date(user.last_active).toLocaleString()
                   : "—"}
               </span>
             </div>
             <div>
               <strong className="font-medium">Joined: </strong>
               <span className="ml-2 font-normal">
-                {session?.user?.created_at
-                  ? new Date(session.user.created_at).toLocaleDateString()
+                {user?.created_at
+                  ? new Date(user.created_at).toLocaleDateString()
                   : "—"}
               </span>
             </div>

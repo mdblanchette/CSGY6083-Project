@@ -216,7 +216,7 @@ export async function POST(
       );
     }
 
-    if (!['public', 'private', 'direct'].includes(channelType)) {
+    if (!["public", "private", "direct"].includes(channelType)) {
       return NextResponse.json(
         { error: "Invalid channel type" },
         { status: 400 },
@@ -243,7 +243,11 @@ export async function POST(
     let directWorkspaceMember = true;
 
     try {
-      workspaceMember = await ensureWorkspaceMember(workspaceId, userId, "lower");
+      workspaceMember = await ensureWorkspaceMember(
+        workspaceId,
+        userId,
+        "lower",
+      );
       if (channelType === "direct" && directUserId !== null) {
         directWorkspaceMember = await ensureWorkspaceMember(
           workspaceId,
@@ -256,7 +260,11 @@ export async function POST(
         throw error;
       }
 
-      workspaceMember = await ensureWorkspaceMember(workspaceId, userId, "upper");
+      workspaceMember = await ensureWorkspaceMember(
+        workspaceId,
+        userId,
+        "upper",
+      );
       if (channelType === "direct" && directUserId !== null) {
         directWorkspaceMember = await ensureWorkspaceMember(
           workspaceId,
@@ -304,259 +312,6 @@ export async function POST(
           "upper",
         );
       } else if (error?.code === "23505") {
-        return NextResponse.json(
-          {
-            error: "A channel with this name already exists in this workspace",
-          },
-          { status: 409 },
-        );
-      } else {
-        throw error;
-      }
-    }
-
-    return NextResponse.json(channel, { status: 201 });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to create channel" },
-      { status: 500 },
-    );
-  }
-}
-
-type ChannelResponse = {
-  id: number;
-  name: string;
-  type: string;
-  description: string | null;
-  createdAt: string;
-};
-
-const parseWorkspaceId = (value: string) => {
-  const workspaceId = Number.parseInt(value, 10);
-  return Number.isFinite(workspaceId) ? workspaceId : null;
-};
-
-const createChannel = async (
-  workspaceId: number,
-  name: string,
-  channelType: string,
-  description: string | null,
-  createdBy: number | null,
-  schema: "lower" | "upper",
-) => {
-  const tables =
-    schema === "lower"
-      ? {
-          channels: "channels",
-          channelMembers: "channel_members",
-        }
-      : {
-          channels: '"Channels"',
-          channelMembers: '"Channel_Members"',
-        };
-
-  const result = await query(
-    `
-      INSERT INTO ${tables.channels} (workspace_id, name, channel_type, description, created_by)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING channel_id AS id, name, channel_type AS type, description, created_at AS "createdAt"
-    `,
-    [workspaceId, name, channelType, description, createdBy],
-  );
-
-  const row = result.rows[0] as ChannelResponse;
-
-  // Add creator as channel member and admin
-  if (createdBy) {
-    try {
-      await query(
-        `
-          INSERT INTO ${tables.channelMembers} (channel_id, user_id, is_admin)
-          VALUES ($1, $2, true)
-        `,
-        [row.id, createdBy],
-      );
-    } catch (e: any) {
-      // ignore - best effort
-    }
-  }
-
-  return row;
-};
-
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ workspaceId: string }> },
-) {
-  try {
-    const { workspaceId: workspaceIdParam } = await context.params;
-    const workspaceId = parseWorkspaceId(workspaceIdParam);
-
-    if (workspaceId === null) {
-      return NextResponse.json(
-        { error: "Invalid workspace id" },
-        { status: 400 },
-      );
-
-    type ChannelTables = {
-      channels: string;
-      channelMembers: string;
-      workspaceMembers: string;
-    };
-
-    const getTables = (schema: "lower" | "upper"): ChannelTables => {
-      return schema === "lower"
-        ? {
-            channels: "channels",
-            channelMembers: "channel_members",
-            workspaceMembers: "workspace_members",
-          }
-        : {
-            channels: '"Channels"',
-            channelMembers: '"Channel_Members"',
-            workspaceMembers: '"Workspace_Members"',
-          };
-    };
-    }
-
-    const session = await getAuthSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-      directUserId: number | null,
-    const userId = Number(session.user.id);
-    const body = await request.json();
-      const tables = getTables(schema);
-
-      if (channelType === "direct" && directUserId !== null) {
-        const existingDirectChannel = await query(
-          `
-            SELECT c.channel_id AS id, c.name, c.channel_type AS type, c.description, c.created_at AS "createdAt"
-            FROM ${tables.channels} c
-            WHERE c.workspace_id = $1
-              AND c.channel_type = 'direct'
-              AND EXISTS (
-                SELECT 1 FROM ${tables.channelMembers} cm
-                WHERE cm.channel_id = c.channel_id AND cm.user_id = $2
-              )
-              AND EXISTS (
-                SELECT 1 FROM ${tables.channelMembers} cm
-                WHERE cm.channel_id = c.channel_id AND cm.user_id = $3
-              )
-              AND (
-                SELECT COUNT(*)::int FROM ${tables.channelMembers} cm
-                WHERE cm.channel_id = c.channel_id
-              ) = 2
-            LIMIT 1
-          `,
-          [workspaceId, createdBy, directUserId],
-        );
-
-        if (existingDirectChannel.rows.length > 0) {
-          return existingDirectChannel.rows[0] as ChannelResponse;
-        }
-      }
-
-    // Validate input
-    if (!name) {
-      return NextResponse.json(
-        { error: "Channel name is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!["public", "private", "direct"].includes(channelType)) {
-      return NextResponse.json(
-        { error: "Invalid channel type" },
-      // Add channel members after creation.
-      if (channelType === "direct" && createdBy && directUserId) {
-        try {
-          await query(
-            `
-              INSERT INTO ${tables.channelMembers} (channel_id, user_id, is_admin)
-              VALUES ($1, $2, false), ($1, $3, false)
-              ON CONFLICT (channel_id, user_id) DO NOTHING
-            `,
-            [row.id, createdBy, directUserId],
-          );
-        } catch (e: any) {
-          // ignore - best effort
-        }
-      } else if (createdBy) {
-    }
-
-    // Check that user is a member of the workspace
-    try {
-      const memberResult = await query(
-        `
-          SELECT 1 FROM workspace_members
-          WHERE workspace_id = $1 AND user_id = $2
-          LIMIT 1
-        `,
-        [workspaceId, userId],
-      );
-
-      if (memberResult.rows.length === 0) {
-        return NextResponse.json(
-          { error: "You are not a member of this workspace" },
-          { status: 403 },
-        );
-      }
-    } catch (error: any) {
-      if (error?.code === "42P01") {
-        // Table doesn't exist in lowercase, try uppercase
-        const memberResult = await query(
-          `
-            SELECT 1 FROM "Workspace_Members"
-            WHERE workspace_id = $1 AND user_id = $2
-            LIMIT 1
-          `,
-          [workspaceId, userId],
-        );
-
-        if (memberResult.rows.length === 0) {
-          return NextResponse.json(
-            { error: "You are not a member of this workspace" },
-            { status: 403 },
-          );
-        }
-      } else {
-        throw error;
-      }
-    }
-
-    let channel = null;
-
-    try {
-      channel = await createChannel(
-        workspaceId,
-        name,
-        const directUserId =
-          typeof body?.directUserId === "number"
-            ? body.directUserId
-            : typeof body?.directUserId === "string"
-              ? Number.parseInt(body.directUserId, 10)
-              : null;
-        channelType,
-        description,
-        userId,
-        "lower",
-      );
-    } catch (error: any) {
-      if (error?.code === "42P01") {
-        // Table doesn't exist in lowercase, try uppercase
-        channel = await createChannel(
-          workspaceId,
-          name,
-          channelType,
-          description,
-          userId,
-          "upper",
-        );
-      } else if (error?.code === "23505") {
-        // Unique constraint violation - channel name already exists in this workspace
         return NextResponse.json(
           {
             error: "A channel with this name already exists in this workspace",
