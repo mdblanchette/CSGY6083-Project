@@ -134,10 +134,16 @@ export async function DELETE(
        WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
       [workspaceId, actorId],
     );
-    if (actorRow.rows.length === 0 || !actorRow.rows[0].is_admin) {
+    if (actorRow.rows.length === 0) {
+      return NextResponse.json({ error: "Not a workspace member" }, { status: 403 });
+    }
+    const actorIsAdmin: boolean = actorRow.rows[0].is_admin;
+    const actorIsOwner: boolean = actorRow.rows[0].is_owner;
+
+    // Only admins or owners can kick members
+    if (!actorIsAdmin && !actorIsOwner) {
       return NextResponse.json({ error: "Only admins can remove members" }, { status: 403 });
     }
-    const actorIsOwner: boolean = actorRow.rows[0].is_owner;
 
     const targetRow = await query(
       `SELECT is_admin, is_owner FROM workspace_members
@@ -150,11 +156,15 @@ export async function DELETE(
     const targetIsOwner: boolean = targetRow.rows[0].is_owner;
     const targetIsAdmin: boolean = targetRow.rows[0].is_admin;
 
-    if (targetIsOwner) {
-      return NextResponse.json({ error: "Cannot remove an owner" }, { status: 409 });
-    }
-    if (targetIsAdmin && !actorIsOwner) {
-      return NextResponse.json({ error: "Only owners can remove admins" }, { status: 403 });
+    // Owners can kick anyone (including admins and other owners)
+    // Admins can only kick regular members (not admins or owners)
+    if (!actorIsOwner) {
+      if (targetIsOwner || targetIsAdmin) {
+        return NextResponse.json(
+          { error: "Admins can only remove regular members, not admins or owners" },
+          { status: 403 },
+        );
+      }
     }
 
     await query("BEGIN");

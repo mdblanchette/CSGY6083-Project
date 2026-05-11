@@ -9,15 +9,15 @@ import PendingWorkspaceInvites from "./PendingWorkspaceInvites";
 const WorkspaceDropdown = () => {
   const router = useRouter();
 
-  const { openCreateCard, workspaces, activeWorkspace, selectWorkspace } =
+  const { openCreateCard, closeCreateCard, workspaces, activeWorkspace, selectWorkspace } =
     useWorkspace();
 
   const [open, setOpen] = useState(false);
 
   const handleWorkspaceSelect = (workspaceId: number) => {
+    closeCreateCard();
     selectWorkspace(workspaceId);
     setOpen(false);
-    //router.push(`/workspaces/${workspaceId}`);
     router.push(`/`);
   };
 

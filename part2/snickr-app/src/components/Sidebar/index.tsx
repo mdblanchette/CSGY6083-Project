@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import SidebarItem from "@/components/Sidebar/SidebarItem";
 import WorkspaceDropdown from "@/components/Sidebar/WorkspaceDropdown";
 import ClickOutside from "@/components/ClickOutside";
 import useLocalStorage from "@/hooks/useLocalStorage";
+import { useWorkspace } from "@/context/WorkspaceContext";
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -17,6 +17,8 @@ const menuGroups: any[] = [];
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { closeCreateCard } = useWorkspace();
 
   const [pageName, setPageName] = useLocalStorage("selectedMenu", "dashboard");
 
@@ -31,12 +33,16 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       >
         {/* <!-- SIDEBAR HEADER --> */}
         <div className="flex items-center justify-between gap-2 border-b border-stroke px-6 py-5.5 dark:border-stroke-dark lg:py-6.5 xl:py-10">
-          <Link href="/" className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { closeCreateCard(); router.push("/"); }}
+            className="flex items-center gap-2"
+          >
             <span className="text-2xl">💬</span>
             <span className="text-heading-4 font-bold text-dark dark:text-white">
               Snickr
             </span>
-          </Link>
+          </button>
 
           <button
             onClick={(e) => {

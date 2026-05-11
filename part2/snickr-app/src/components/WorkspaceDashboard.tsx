@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -78,6 +78,9 @@ const WorkspaceDashboard = () => {
     return Number.isFinite(n) ? n : null;
   })();
 
+  // undefined = never set; null = was null (loading); number = a real workspace
+  const prevWorkspaceIdRef = useRef<number | null | undefined>(undefined);
+
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +88,8 @@ const WorkspaceDashboard = () => {
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
 
-  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
+  // Initialize directly from URL so channel view renders immediately on back-navigation
+  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(channelIdFromUrl);
   const [channelDetail, setChannelDetail] = useState<ChannelDetail | null>(null);
   const [channelLoading, setChannelLoading] = useState(false);
 
@@ -138,13 +142,21 @@ const WorkspaceDashboard = () => {
   };
 
   useEffect(() => {
+    const prevId = prevWorkspaceIdRef.current;
+    prevWorkspaceIdRef.current = activeWorkspaceId;
+
     loadSummary();
     loadPendingChannelInvites();
-    // Clear channel param when workspace changes
-    router.replace(pathname, { scroll: false });
-    setSelectedChannelId(null);
-    setChannelDetail(null);
-    setPendingChannelInvites([]);
+
+    // Only clear channel context when switching between two real workspaces.
+    // Skip when prevId is undefined (initial mount) or null (workspace first loading in).
+    // This preserves the ?channel= param when returning from a profile page.
+    if (prevId !== undefined && prevId !== null) {
+      router.replace(pathname, { scroll: false });
+      setSelectedChannelId(null);
+      setChannelDetail(null);
+      setPendingChannelInvites([]);
+    }
   }, [activeWorkspaceId]);
 
   const reloadSummary = async () => {
@@ -190,9 +202,8 @@ const WorkspaceDashboard = () => {
       setMessageError(null);
       return;
     }
-    if (channelIdFromUrl !== selectedChannelId) {
-      doLoadChannelDetail(channelIdFromUrl);
-    }
+    // Always (re)load when the URL channel changes, including on initial mount
+    doLoadChannelDetail(channelIdFromUrl);
   }, [channelIdFromUrl]);
 
   const submitMessage = async () => {
@@ -510,53 +521,57 @@ const WorkspaceDashboard = () => {
 
   // ── Early returns ─────────────────────────────────────────────────────────
 
-  if (!activeWorkspaceId) {
-    if (showCreateCard) return null;
-    return (
-      <section className="rounded-2xl border border-stroke bg-white p-8 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
-        <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">Workspaces</p>
-          <h1 className="mt-3 text-3xl font-bold text-dark dark:text-white">Create or select a workspace</h1>
-          <p className="mt-4 text-dark-4 dark:text-dark-6">
-            Choose a workspace from the sidebar, or create a new one to get started.
-          </p>
-          <button type="button" onClick={openCreateCard}
-            className="mt-6 rounded-xl bg-primary px-5 py-3 font-medium text-white transition hover:bg-primary/90">
-            Create Workspace
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  if (loading && !summary) {
-    return (
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
-        {[1, 2].map((i) => (
-          <div key={i} className="animate-pulse rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
-            <div className="h-4 w-28 rounded bg-gray-200 dark:bg-dark-3" />
-            <div className="mt-4 h-8 w-2/3 rounded bg-gray-200 dark:bg-dark-3" />
-            <div className="mt-6 space-y-3">
-              <div className="h-14 rounded-xl bg-gray-200 dark:bg-dark-3" />
-              <div className="h-14 rounded-xl bg-gray-200 dark:bg-dark-3" />
-            </div>
+  // Only show workspace-selection / loading / error screens when no channel is targeted.
+  // If a channel ID is in the URL, skip straight to the channel view so back-navigation works.
+  if (selectedChannelId === null) {
+    if (!activeWorkspaceId) {
+      if (showCreateCard) return null;
+      return (
+        <section className="rounded-2xl border border-stroke bg-white p-8 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
+          <div className="max-w-2xl">
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">Workspaces</p>
+            <h1 className="mt-3 text-3xl font-bold text-dark dark:text-white">Create or select a workspace</h1>
+            <p className="mt-4 text-dark-4 dark:text-dark-6">
+              Choose a workspace from the sidebar, or create a new one to get started.
+            </p>
+            <button type="button" onClick={openCreateCard}
+              className="mt-6 rounded-xl bg-primary px-5 py-3 font-medium text-white transition hover:bg-primary/90">
+              Create Workspace
+            </button>
           </div>
-        ))}
-      </section>
-    );
+        </section>
+      );
+    }
+
+    if (loading && !summary) {
+      return (
+        <section className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
+          {[1, 2].map((i) => (
+            <div key={i} className="animate-pulse rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
+              <div className="h-4 w-28 rounded bg-gray-200 dark:bg-dark-3" />
+              <div className="mt-4 h-8 w-2/3 rounded bg-gray-200 dark:bg-dark-3" />
+              <div className="mt-6 space-y-3">
+                <div className="h-14 rounded-xl bg-gray-200 dark:bg-dark-3" />
+                <div className="h-14 rounded-xl bg-gray-200 dark:bg-dark-3" />
+              </div>
+            </div>
+          ))}
+        </section>
+      );
+    }
+
+    if (error || !summary) {
+      return (
+        <section className="rounded-2xl border border-stroke bg-white p-8 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
+          <p className="text-sm font-medium uppercase text-red-500">Error</p>
+          <h1 className="mt-3 text-3xl font-bold text-dark dark:text-white">{error || "Workspace not found"}</h1>
+        </section>
+      );
+    }
   }
 
-  if (error || !summary) {
-    return (
-      <section className="rounded-2xl border border-stroke bg-white p-8 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
-        <p className="text-sm font-medium uppercase text-red-500">Error</p>
-        <h1 className="mt-3 text-3xl font-bold text-dark dark:text-white">{error || "Workspace not found"}</h1>
-      </section>
-    );
-  }
-
-  // Compute workspace role once — available to both channel detail and main views
-  const currentMember = summary.members.find((m) => m.username === session?.user?.username);
+  // Compute workspace role — summary may still be loading when a channel is pre-selected
+  const currentMember = summary?.members.find((m) => m.username === session?.user?.username);
   const isWorkspaceAdmin = currentMember?.isAdmin ?? false;
   const isWorkspaceOwner = currentMember?.isOwner ?? false;
 
@@ -586,8 +601,17 @@ const WorkspaceDashboard = () => {
     }
 
     const isPrivate = channelDetail.channel.type.toLowerCase() === "private";
+    const isDirect = channelDetail.channel.type.toLowerCase() === "direct";
+    const isPublicChannel = channelDetail.channel.type.toLowerCase() === "public";
     const isChannelAdmin = channelDetail.currentUser?.isAdmin ?? false;
     const isChannelMember = channelDetail.currentUser?.isMember ?? false;
+    const isChannelCreator = channelDetail.channel.createdBy === currentMember?.id;
+
+    // Delete permission: admins+owners can delete public channels or channels they created;
+    // regular members can delete channels they created
+    const canDeleteChannel =
+      ((isWorkspaceAdmin || isWorkspaceOwner) && (isPublicChannel || isChannelCreator)) ||
+      (!isWorkspaceAdmin && !isWorkspaceOwner && isChannelCreator);
 
     return (
       <section className="space-y-6">
@@ -596,13 +620,13 @@ const WorkspaceDashboard = () => {
             ← Back to Workspace
           </button>
           <div className="flex gap-2">
-            {isChannelMember && isPrivate && !isWorkspaceOwner && (
+            {isChannelMember && (isPrivate || isDirect) && (
               <button onClick={handleLeaveChannel} disabled={leavingChannel}
                 className="rounded-lg border border-red-300 px-4 py-1.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:hover:bg-red-900/20">
                 {leavingChannel ? "Leaving…" : "Leave Channel"}
               </button>
             )}
-            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+            {canDeleteChannel && (
               <button onClick={handleDeleteChannel} disabled={deletingChannel}
                 className="rounded-lg bg-red-500 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-600 disabled:opacity-60">
                 {deletingChannel ? "Deleting…" : "Delete Channel"}
@@ -691,7 +715,7 @@ const WorkspaceDashboard = () => {
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
               {channelDetail.channel.type}
             </span>
-            {(isWorkspaceAdmin || isWorkspaceOwner) && (
+            {(isWorkspaceAdmin || isWorkspaceOwner) && !isDirect && (
               <button
                 onClick={handleToggleChannelType}
                 disabled={togglingChannelType}
@@ -707,15 +731,20 @@ const WorkspaceDashboard = () => {
           </div>
         </div>
 
-        {isPrivate && isChannelAdmin && <ChannelInvitationForm channelId={selectedChannelId} />}
+        {isChannelAdmin && (isPrivate || (isDirect && channelDetail.channel.memberCount < 2)) && (
+          <ChannelInvitationForm channelId={selectedChannelId} />
+        )}
 
         <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
           <h3 className="text-lg font-semibold text-dark dark:text-white">Messages</h3>
           <div className="mt-6 max-h-[30vh] space-y-4 overflow-y-auto pr-2">
             {channelDetail.messages.length > 0 ? (
               channelDetail.messages.map((message) => {
+                const returnParam = selectedChannelId ? `?returnChannel=${selectedChannelId}` : "";
                 const senderHref = message.senderName
-                  ? message.senderName === session?.user?.username ? "/profile" : `/profile/${message.senderName}`
+                  ? message.senderName === session?.user?.username
+                    ? `/profile${returnParam}`
+                    : `/profile/${message.senderName}${returnParam}`
                   : "#";
                 const senderLabel = message.senderNickname || message.senderName || message.senderEmail || "System";
                 const initial = senderLabel.charAt(0).toUpperCase();
@@ -777,6 +806,8 @@ const WorkspaceDashboard = () => {
   }
 
   // ── Workspace main view (two-column) ──────────────────────────────────────
+  // Reached only when selectedChannelId === null; the guards above ensure summary is non-null.
+  if (!summary) return null;
 
   return (
     <section className="space-y-6">
@@ -874,7 +905,7 @@ const WorkspaceDashboard = () => {
                   {summary.channels.length} channel{summary.channels.length !== 1 ? "s" : ""}
                 </h3>
               </div>
-              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              {currentMember && (
                 <button type="button" onClick={() => setShowCreateChannelModal(true)}
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90">
                   + Add
@@ -937,7 +968,7 @@ const WorkspaceDashboard = () => {
         </div>
 
         {/* ── Right: Members ── */}
-        <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
+        <div className="self-start rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">Members</p>
@@ -966,8 +997,12 @@ const WorkspaceDashboard = () => {
               // What actions can the current user take on this member?
               const canPromoteToAdmin = (isWorkspaceAdmin || isWorkspaceOwner) && !member.isAdmin && !member.isOwner && !isSelf;
               const canDemote = isWorkspaceOwner && member.isAdmin && !member.isOwner && !isSelf;
-              const canRemove = (isWorkspaceOwner || isWorkspaceAdmin) && !member.isOwner && !isSelf &&
-                (isWorkspaceOwner || !member.isAdmin);
+              // Owners can kick anyone (including admins and other owners) except themselves
+              // Admins can only kick regular members (not admins or owners)
+              const canRemove = !isSelf && (
+                isWorkspaceOwner ||
+                (isWorkspaceAdmin && !member.isAdmin && !member.isOwner)
+              );
 
               return (
                 <div key={member.id} className="flex items-center justify-between gap-2 rounded-xl bg-gray-1 p-3 dark:bg-dark-3">
@@ -1038,7 +1073,7 @@ const WorkspaceDashboard = () => {
 
       {showCreateChannelModal && (
         <CreateChannelModal
-          workspaceId={activeWorkspaceId}
+          workspaceId={activeWorkspaceId as number}
           onClose={() => setShowCreateChannelModal(false)}
           onChannelCreated={(newChannelId: number) => {
             reloadSummary();

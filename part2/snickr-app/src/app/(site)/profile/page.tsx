@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
 import ProfileBox from "@/components/ProfileBox";
 import SettingBoxes from "@/components/SettingBoxes";
@@ -12,6 +14,8 @@ function ProfileContent() {
   const { showCreateCard } = useWorkspace();
   const [file, setFile] = useState<File | undefined>();
   const [coverFile, setCoverFile] = useState<File | undefined>();
+  const searchParams = useSearchParams();
+  const returnChannel = searchParams.get("returnChannel");
 
   if (showCreateCard) {
     return (
@@ -24,6 +28,14 @@ function ProfileContent() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6">
+        {returnChannel && (
+          <Link
+            href={`/?channel=${returnChannel}`}
+            className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
+          >
+            ← Back to Channel
+          </Link>
+        )}
         <h1 className="text-heading-2 font-bold text-dark dark:text-white">
           My Profile
         </h1>

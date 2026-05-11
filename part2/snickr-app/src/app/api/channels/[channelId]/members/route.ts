@@ -28,18 +28,22 @@ export async function DELETE(
 
     const userId = Number(session.user.id);
 
-    // Verify membership
+    // Verify membership and get channel type in one shot
     const memberRow = await query(
-      `SELECT is_admin FROM channel_members
-       WHERE channel_id = $1 AND user_id = $2 LIMIT 1`,
+      `SELECT cm.is_admin, c.channel_type
+       FROM channel_members cm
+       JOIN channels c ON c.channel_id = cm.channel_id
+       WHERE cm.channel_id = $1 AND cm.user_id = $2 LIMIT 1`,
       [channelId, userId],
     );
     if (memberRow.rows.length === 0) {
       return NextResponse.json({ error: "You are not a member of this channel" }, { status: 403 });
     }
 
-    // Block last admin from leaving if other members exist
-    if (memberRow.rows[0].is_admin) {
+    const isDirect = (memberRow.rows[0].channel_type as string).toLowerCase() === "direct";
+
+    // Block last admin from leaving if other members exist (not applicable to direct channels)
+    if (memberRow.rows[0].is_admin && !isDirect) {
       const adminCount = await query(
         `SELECT COUNT(*)::int AS count FROM channel_members
          WHERE channel_id = $1 AND is_admin = true`,

@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
 import ReadOnlyProfileBox from "@/components/ProfileBox/ReadOnlyProfileBox";
 import { query } from "@/libs/db";
@@ -75,13 +76,16 @@ const getUserByIdentifier = async (identifier: string) => {
 
 export default async function ProfileViewPage({
   params,
+  searchParams,
 }: {
   params: { username: string };
+  searchParams: { returnChannel?: string };
 }) {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.username === params.username) {
-    redirect("/profile");
+    const qs = searchParams.returnChannel ? `?returnChannel=${searchParams.returnChannel}` : "";
+    redirect(`/profile${qs}`);
   }
 
   const user = await getUserByIdentifier(params.username);
@@ -90,12 +94,22 @@ export default async function ProfileViewPage({
     notFound();
   }
 
+  const returnChannel = searchParams.returnChannel;
+
   return (
     <DefaultLayout>
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
+          {returnChannel && (
+            <Link
+              href={`/?channel=${returnChannel}`}
+              className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
+            >
+              ← Back to Channel
+            </Link>
+          )}
           <h1 className="text-heading-2 font-bold text-dark dark:text-white">
-            {user.username || user.nickname || user.email}'s Profile
+            {user.username || user.nickname || user.email}&apos;s Profile
           </h1>
         </div>
 

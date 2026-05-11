@@ -81,7 +81,7 @@ export async function POST(
       return NextResponse.json({ error: "Username or email is required" }, { status: 400 });
     }
 
-    // Get workspace_id for the channel so we can check workspace membership
+    // Get workspace_id and channel_type for the channel
     const channelRow = await query(
       `SELECT workspace_id, channel_type FROM channels WHERE channel_id = $1 LIMIT 1`,
       [channelId],
@@ -89,20 +89,18 @@ export async function POST(
     if (channelRow.rows.length === 0) {
       return NextResponse.json({ error: "Channel not found" }, { status: 404 });
     }
-    const { workspace_id: workspaceId } = channelRow.rows[0];
+    const { workspace_id: workspaceId, channel_type: channelType } = channelRow.rows[0];
+    const isDirect = (channelType as string).toLowerCase() === "direct";
 
-    // Channel admins OR workspace admins/owners can invite
+    // Only channel admins can invite
     const adminCheck = await query(
       `SELECT 1 FROM channel_members
        WHERE channel_id = $1 AND user_id = $2 AND is_admin = true
-       UNION
-       SELECT 1 FROM workspace_members
-       WHERE workspace_id = $3 AND user_id = $2 AND (is_admin = true OR is_owner = true)
        LIMIT 1`,
-      [channelId, inviterId, workspaceId],
+      [channelId, inviterId],
     );
     if (adminCheck.rows.length === 0) {
-      return NextResponse.json({ error: "Only channel or workspace admins can invite users" }, { status: 403 });
+      return NextResponse.json({ error: "Only channel admins can invite users" }, { status: 403 });
     }
 
     // Find invitee by username or email
@@ -139,6 +137,31 @@ export async function POST(
     );
     if (existingMember.rows.length > 0) {
       return NextResponse.json({ error: "User is already a channel member" }, { status: 409 });
+    }
+
+    // Direct channels: max 2 members total; max 1 pending invite at a time
+    if (isDirect) {
+      const memberCountResult = await query(
+        `SELECT COUNT(*)::int AS count FROM channel_members WHERE channel_id = $1`,
+        [channelId],
+      );
+      if ((memberCountResult.rows[0] as { count: number }).count >= 2) {
+        return NextResponse.json(
+          { error: "Direct channel is full (maximum 2 members)" },
+          { status: 409 },
+        );
+      }
+      const pendingCountResult = await query(
+        `SELECT COUNT(*)::int AS count FROM channel_invitations
+         WHERE channel_id = $1 AND status = 'pending'`,
+        [channelId],
+      );
+      if ((pendingCountResult.rows[0] as { count: number }).count > 0) {
+        return NextResponse.json(
+          { error: "Direct channel already has a pending invitation" },
+          { status: 409 },
+        );
+      }
     }
 
     // No duplicate pending invitations

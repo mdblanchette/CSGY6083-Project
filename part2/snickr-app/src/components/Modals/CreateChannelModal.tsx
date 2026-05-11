@@ -135,9 +135,14 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
             >
               <option value="public">Public</option>
               <option value="private">Private</option>
+              <option value="direct">Direct</option>
             </select>
             <p className="mt-1 text-xs text-dark-4 dark:text-dark-6">
-              Public channels are visible to all workspace members
+              {formData.channelType === "public"
+                ? "Visible to all workspace members"
+                : formData.channelType === "direct"
+                ? "Private 1-on-1 conversation — max 2 members"
+                : "Invite-only — only invited members can view"}
             </p>
           </div>
 

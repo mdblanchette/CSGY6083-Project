@@ -108,14 +108,7 @@ const buildSummary = async (
             WHERE wm.workspace_id = c.workspace_id
           )
           ELSE (
-            (SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id)
-            + (SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm_o
-               WHERE wm_o.workspace_id = c.workspace_id
-                 AND wm_o.is_owner = true
-                 AND NOT EXISTS (
-                   SELECT 1 FROM ${tables.channelMembers} cm2
-                   WHERE cm2.channel_id = c.channel_id AND cm2.user_id = wm_o.user_id
-                 ))
+            SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
           )
         END AS "memberCount",
         (
@@ -132,13 +125,6 @@ const buildSummary = async (
             FROM ${tables.channelMembers} cm
             WHERE cm.channel_id = c.channel_id
               AND cm.user_id = $2
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM ${tables.workspaceMembers} wm_owner
-            WHERE wm_owner.workspace_id = c.workspace_id
-              AND wm_owner.user_id = $2
-              AND wm_owner.is_owner = true
           )
         )
       ORDER BY c.created_at ASC

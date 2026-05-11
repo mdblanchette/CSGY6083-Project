@@ -57,7 +57,22 @@ const DropdownUser = () => {
         aria-label="Open user menu"
         className="flex items-center gap-3 rounded-full py-1 pr-1 text-left"
       >
-        <Avatar size={48} />
+        <span className="relative block h-12 w-12 shrink-0 rounded-full">
+          <Avatar size={48} />
+          <span
+            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
+              !session?.user?.status_emoji
+                ? "bg-green"
+                : session?.user?.status_emoji === "🟡"
+                  ? "bg-yellow-400"
+                  : session?.user?.status_emoji === "🔴"
+                    ? "bg-red"
+                    : session?.user?.status_emoji === "⚫"
+                      ? "bg-gray-400"
+                      : "bg-green"
+            }`}
+          />
+        </span>
 
         <span className="hidden items-center gap-2 font-medium text-dark dark:text-dark-6 lg:flex">
           <span>{displayName}</span>
