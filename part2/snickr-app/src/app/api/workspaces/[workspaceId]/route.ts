@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { getAuthSession } from "@/libs/auth";
 import { query } from "@/libs/db";
-import { getVisibleWorkspaceChannels } from "@/libs/channel-access";
+import { getAuthSession } from "@/libs/auth";
 
 export const runtime = "nodejs";
 
 type WorkspaceSummary = {
-  currentUserId: number;
   workspace: {
     id: number;
     name: string;
@@ -28,6 +26,7 @@ type WorkspaceSummary = {
     username: string;
     nickname: string | null;
     isAdmin: boolean;
+    isOwner: boolean;
     joinedAt: string;
   }>;
 };
@@ -37,26 +36,29 @@ const parseWorkspaceId = (value: string) => {
   return Number.isFinite(workspaceId) ? workspaceId : null;
 };
 
-const getTables = (schema: "lower" | "upper") => {
-  return schema === "lower"
-    ? {
-        workspaces: "workspaces",
-        workspaceMembers: "workspace_members",
-        users: "users",
-      }
-    : {
-        workspaces: '"Workspaces"',
-        workspaceMembers: '"Workspace_Members"',
-        users: '"Users"',
-      };
-};
-
 const buildSummary = async (
   workspaceId: number,
   userId: number,
   schema: "lower" | "upper",
-) => {
-  const tables = getTables(schema);
+): Promise<WorkspaceSummary | { forbidden: true } | null> => {
+  const tables =
+    schema === "lower"
+      ? {
+          workspaces: "workspaces",
+          channels: "channels",
+          workspaceMembers: "workspace_members",
+          users: "users",
+          channelMembers: "channel_members",
+          messages: "messages",
+        }
+      : {
+          workspaces: '"Workspaces"',
+          channels: '"Channels"',
+          workspaceMembers: '"Workspace_Members"',
+          users: '"Users"',
+          channelMembers: '"Channel_Members"',
+          messages: '"Messages"',
+        };
 
   const workspaceResult = await query(
     `
@@ -76,24 +78,58 @@ const buildSummary = async (
     return null;
   }
 
-  const memberResult = await query(
+  const membershipResult = await query(
     `
       SELECT 1
-      FROM ${tables.workspaceMembers}
-      WHERE workspace_id = $1 AND user_id = $2
+      FROM ${tables.workspaceMembers} wm
+      WHERE wm.workspace_id = $1
+        AND wm.user_id = $2
       LIMIT 1
     `,
     [workspaceId, userId],
   );
 
-  if (memberResult.rows.length === 0) {
-    return { status: "forbidden" as const };
+  if (membershipResult.rows.length === 0) {
+    return { forbidden: true };
   }
 
-  const channelsResult = await getVisibleWorkspaceChannels(
-    workspaceId,
-    userId,
-    schema,
+  const channelsResult = await query(
+    `
+      SELECT
+        c.channel_id AS id,
+        c.name,
+        c.channel_type AS type,
+        c.description,
+        c.created_at AS "createdAt",
+        CASE
+          WHEN LOWER(c.channel_type) = 'public' THEN (
+            SELECT COUNT(*)::int
+            FROM ${tables.workspaceMembers} wm
+            WHERE wm.workspace_id = c.workspace_id
+          )
+          ELSE (
+            SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
+          )
+        END AS "memberCount",
+        (
+          SELECT COUNT(*)::int
+          FROM ${tables.messages} m
+          WHERE m.channel_id = c.channel_id
+        ) AS "messageCount"
+      FROM ${tables.channels} c
+      WHERE c.workspace_id = $1
+        AND (
+          LOWER(c.channel_type) = 'public'
+          OR EXISTS (
+            SELECT 1
+            FROM ${tables.channelMembers} cm
+            WHERE cm.channel_id = c.channel_id
+              AND cm.user_id = $2
+          )
+        )
+      ORDER BY c.created_at ASC
+    `,
+    [workspaceId, userId],
   );
 
   const membersResult = await query(
@@ -104,23 +140,119 @@ const buildSummary = async (
         u.username,
         u.nickname,
         wm.is_admin AS "isAdmin",
+        wm.is_owner AS "isOwner",
         wm.joined_at AS "joinedAt"
       FROM ${tables.workspaceMembers} wm
       INNER JOIN ${tables.users} u
         ON u.user_id = wm.user_id
       WHERE wm.workspace_id = $1
-      ORDER BY wm.is_admin DESC, wm.joined_at ASC
+      ORDER BY wm.is_owner DESC, wm.is_admin DESC, wm.joined_at ASC
     `,
     [workspaceId],
   );
 
   return {
-    currentUserId: userId,
     workspace: workspaceResult.rows[0],
-    channels: channelsResult,
+    channels: channelsResult.rows,
     members: membersResult.rows,
   } as WorkspaceSummary;
 };
+
+// PATCH — workspace admin or owner renames the workspace
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId: workspaceIdParam } = await context.params;
+    const workspaceId = parseWorkspaceId(workspaceIdParam);
+    if (workspaceId === null) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+    const body = await request.json().catch(() => ({}));
+    const rawName = typeof body?.name === "string" ? body.name.trim() : undefined;
+    const newDescription: string | null | undefined =
+      "description" in body
+        ? body.description === null
+          ? null
+          : typeof body.description === "string"
+          ? body.description.trim()
+          : undefined
+        : undefined;
+
+    if (rawName === "") {
+      return NextResponse.json({ error: "Workspace name cannot be empty" }, { status: 400 });
+    }
+    if (rawName === undefined && newDescription === undefined) {
+      return NextResponse.json({ error: "Provide name or description to update" }, { status: 400 });
+    }
+
+    const memberRow = await query(
+      `SELECT is_admin, is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)) {
+      return NextResponse.json({ error: "Only workspace admins can update the workspace" }, { status: 403 });
+    }
+
+    if (rawName) {
+      await query(`UPDATE workspaces SET name = $1 WHERE workspace_id = $2`, [rawName, workspaceId]);
+    }
+    if (newDescription !== undefined) {
+      await query(`UPDATE workspaces SET description = $1 WHERE workspace_id = $2`, [newDescription, workspaceId]);
+    }
+
+    return NextResponse.json({ success: true, name: rawName, description: newDescription });
+  } catch (error) {
+    console.error("PATCH WORKSPACE ERROR:", error);
+    return NextResponse.json({ error: "Failed to rename workspace" }, { status: 500 });
+  }
+}
+
+// DELETE — workspace owner deletes the entire workspace
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId: workspaceIdParam } = await context.params;
+    const workspaceId = parseWorkspaceId(workspaceIdParam);
+    if (workspaceId === null) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+
+    const memberRow = await query(
+      `SELECT is_owner FROM workspace_members
+       WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (memberRow.rows.length === 0 || !memberRow.rows[0].is_owner) {
+      return NextResponse.json({ error: "Only workspace owners can delete a workspace" }, { status: 403 });
+    }
+
+    await query(`DELETE FROM workspaces WHERE workspace_id = $1`, [workspaceId]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE WORKSPACE ERROR:", error);
+    return NextResponse.json({ error: "Failed to delete workspace" }, { status: 500 });
+  }
+}
 
 export async function GET(
   _request: Request,
@@ -142,24 +274,31 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = Number.parseInt(session.user.id, 10);
-    if (!Number.isFinite(userId)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = Number(session.user.id);
     let summary = null;
+    let forbidden = false;
 
     try {
-      summary = await buildSummary(workspaceId, userId, "lower");
+      const result = await buildSummary(workspaceId, userId, "lower");
+      if (result && "forbidden" in result) {
+        forbidden = true;
+      } else {
+        summary = result;
+      }
     } catch (error: any) {
       if (error?.code !== "42P01") {
         throw error;
       }
     }
 
-    if (!summary) {
+    if (!summary && !forbidden) {
       try {
-        summary = await buildSummary(workspaceId, userId, "upper");
+        const result = await buildSummary(workspaceId, userId, "upper");
+        if (result && "forbidden" in result) {
+          forbidden = true;
+        } else {
+          summary = result;
+        }
       } catch (error: any) {
         if (error?.code !== "42P01") {
           throw error;
@@ -167,9 +306,9 @@ export async function GET(
       }
     }
 
-    if (summary && "status" in summary && summary.status === "forbidden") {
+    if (forbidden && !summary) {
       return NextResponse.json(
-        { error: "You are not a member of this workspace" },
+        { error: "Access denied" },
         { status: 403 },
       );
     }

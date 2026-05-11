@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 import { useWorkspace } from "@/context/WorkspaceContext";
 
 const CreateWorkspaceCard = () => {
@@ -15,33 +16,52 @@ const CreateWorkspaceCard = () => {
 
   if (!showCreateCard) return null;
 
-  const create = async () => {
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description }),
-      });
-      if (res.ok) {
-        const workspace = await res.json();
-        setName("");
-        setDescription("");
-        closeCreateCard();
-        await refreshWorkspaces();
-        if (workspace?.id) {
-          selectWorkspace(workspace.id);
-        }
-      } else {
-        console.error("Create failed");
+const create = async () => {
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+
+  if (!trimmedName) {
+    toast.error("Workspace name is required");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/workspaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: trimmedName,
+        description: trimmedDescription || null,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setName("");
+      setDescription("");
+      closeCreateCard();
+
+      await refreshWorkspaces();
+
+      if (data?.id) {
+        selectWorkspace(data.id);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+
+      toast.success("Workspace created successfully");
+    } else {
+      toast.error(data.error || "Failed to create workspace");
+      console.error("Create failed:", data);
     }
-  };
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to create workspace");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <section className="w-full rounded-2xl border border-stroke bg-white p-5 shadow-sm dark:border-stroke-dark dark:bg-gray-dark md:p-6">

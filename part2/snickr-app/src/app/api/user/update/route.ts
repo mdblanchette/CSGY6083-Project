@@ -1,79 +1,77 @@
-import { prisma } from "@/libs/prismaDb";
+import { query } from "@/libs/db";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/libs/auth";
 import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { email, nickname, username, status_text, bio } = body;
-
   const session = await getServerSession(authOptions);
-  const updateData: { [key: string]: any } = {};
 
-  const isDemo = session?.user?.email?.includes("demo-");
-
-  if (!session?.user) {
-    return new NextResponse(JSON.stringify("User not found!"), { status: 400 });
+  if (!session?.user?.email) {
+    return NextResponse.json("User not found!", { status: 400 });
   }
 
-  if (body === null) {
-    return new NextResponse(JSON.stringify("Missing Fields"), { status: 400 });
-  }
-
-  if (nickname !== undefined) {
-    updateData.nickname = nickname;
-  }
-
-  if (email) {
-    updateData.email = email.toLowerCase();
-  }
-
-  if (username !== undefined) {
-    updateData.username = username;
-  }
-
-  if (status_text !== undefined) {
-    updateData.status_text = status_text;
-  }
-
-  if (bio !== undefined) {
-    updateData.bio = bio;
-  }
-
+  const isDemo = session.user.email.includes("demo-");
   if (isDemo) {
-    return new NextResponse(JSON.stringify("Can't update demo user"), {
-      status: 401,
-    });
+    return NextResponse.json("Can't update demo user", { status: 401 });
   }
+
+  const body = await request.json();
+  if (!body) {
+    return NextResponse.json("Missing Fields", { status: 400 });
+  }
+
+  const { nickname, email, status_emoji, status_text, bio, image, coverImage } = body;
+
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  const add = (col: string, val: unknown) => {
+    values.push(val);
+    updates.push(`${col} = $${values.length}`);
+  };
+
+  if (nickname !== undefined) add("nickname", nickname);
+  if (email !== undefined) add("email", (email as string).toLowerCase());
+  if (status_emoji !== undefined) add("status_emoji", status_emoji);
+  if (status_text !== undefined) add("status_text", status_text);
+  if (bio !== undefined) add("bio", bio);
+  if (image !== undefined) add("image", image);
+  if (coverImage !== undefined) add("cover_image", coverImage);
+  add("last_active", new Date());
+
+  values.push(session.user.email);
 
   try {
-    const user = await prisma.user.update({
-      where: {
-        email: session?.user?.email as string,
-      },
-      data: {
-        ...updateData,
-      },
-    });
-
-    revalidatePath("/user");
-
-    return NextResponse.json(
-      {
-        email: user.email,
-        nickname: user.nickname,
-        username: user.username,
-        status_text: user.status_text,
-        bio: user.bio,
-      },
-      { status: 200 },
+    const result = await query(
+      `UPDATE users
+       SET ${updates.join(", ")}
+       WHERE email = $${values.length}
+       RETURNING email, username, nickname, status_emoji, status_text, bio, image, cover_image, last_active, created_at`,
+      values,
     );
 
-    // return new NextResponse(JSON.stringify("User Updated Successfully!"), {
-    // 	status: 200,
-    // });
+    const user = result.rows[0];
+
+    if (!user) {
+      return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    }
+
+    revalidatePath("/profile");
+
+    return NextResponse.json({
+      email: user.email,
+      nickname: user.nickname,
+      username: user.username,
+      status_emoji: user.status_emoji,
+      status_text: user.status_text,
+      bio: user.bio,
+      image: user.image,
+      coverImage: user.cover_image,
+      last_active: user.last_active,
+      created_at: user.created_at,
+    });
   } catch (error) {
-    return new NextResponse("Something went wrong", { status: 500 });
+    console.error("PROFILE UPDATE ERROR:", error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

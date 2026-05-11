@@ -1,19 +1,29 @@
 "use client";
+
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import ClickOutside from "@/components/ClickOutside";
+import PendingWorkspaceInvites from "./PendingWorkspaceInvites";
 
 const WorkspaceDropdown = () => {
   const router = useRouter();
-  const { openCreateCard, workspaces, activeWorkspace, selectWorkspace } =
+
+  const { openCreateCard, closeCreateCard, workspaces, activeWorkspace, selectWorkspace } =
     useWorkspace();
+
   const [open, setOpen] = useState(false);
 
   const handleWorkspaceSelect = (workspaceId: number) => {
+    closeCreateCard();
     selectWorkspace(workspaceId);
     setOpen(false);
-    router.replace("/");
+    router.push(`/`);
+  };
+
+  const handleCreateWorkspace = () => {
+    setOpen(false);
+    openCreateCard();
   };
 
   return (
@@ -29,10 +39,12 @@ const WorkspaceDropdown = () => {
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
                 Workspace
               </p>
+
               <span className="block truncate text-sm font-semibold text-dark dark:text-white">
                 {activeWorkspace?.name ?? "Create Workspace"}
               </span>
             </div>
+
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path
                 d="M6 9l6 6 6-6"
@@ -56,7 +68,9 @@ const WorkspaceDropdown = () => {
                         <li key={workspace.id}>
                           <button
                             type="button"
-                            onClick={() => handleWorkspaceSelect(workspace.id)}
+                            onClick={() =>
+                              handleWorkspaceSelect(workspace.id)
+                            }
                             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${
                               isActive
                                 ? "bg-primary/10 text-primary"
@@ -66,6 +80,7 @@ const WorkspaceDropdown = () => {
                             <span className="truncate font-medium">
                               {workspace.name}
                             </span>
+
                             {isActive && (
                               <span className="ml-3 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-white">
                                 Active
@@ -85,15 +100,19 @@ const WorkspaceDropdown = () => {
                 <div className="mt-2 border-t border-stroke px-1 pt-2 dark:border-stroke-dark">
                   <button
                     type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      openCreateCard();
-                    }}
+                    onClick={handleCreateWorkspace}
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-primary transition hover:bg-primary/5"
                   >
                     <span className="font-medium">Create new workspace</span>
                     <span className="text-lg leading-none">+</span>
                   </button>
+                </div>
+
+                <div className="mt-3 border-t border-stroke pt-3 dark:border-stroke-dark">
+                  <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
+                    Pending invites
+                  </p>
+                  <PendingWorkspaceInvites />
                 </div>
               </div>
             </div>

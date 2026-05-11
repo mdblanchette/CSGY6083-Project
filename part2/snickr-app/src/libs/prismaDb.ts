@@ -86,6 +86,16 @@ const getUserBy = async (where: Record<string, unknown>) => {
     ) as PrismaLikeUser | null;
   }
 
+  if (typeof where.username === "string") {
+    const result = await query(
+      "SELECT * FROM users WHERE username = $1 LIMIT 1",
+      [where.username],
+    );
+    return result.rows[0]
+      ? (toUser(result.rows[0] as UserRecord) as PrismaLikeUser)
+      : null;
+  }
+
   if (typeof where.passwordResetToken === "string") {
     return null;
   }

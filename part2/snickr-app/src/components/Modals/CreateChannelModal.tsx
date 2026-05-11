@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useEffect } from "react";
 import toast from "react-hot-toast";
 
 interface CreateChannelModalProps {
@@ -9,20 +8,6 @@ interface CreateChannelModalProps {
   onClose: () => void;
   onChannelCreated?: (channelId: number) => void;
 }
-
-type WorkspaceSummaryResponse = {
-  currentUserId: number;
-  members: WorkspaceMember[];
-};
-
-type WorkspaceMember = {
-  id: number;
-  email: string;
-  username: string;
-  nickname: string | null;
-  isAdmin: boolean;
-  joinedAt: string;
-};
 
 const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   workspaceId,
@@ -34,54 +19,8 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
     description: "",
     channelType: "public",
   });
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>(
-    [],
-  );
-  const [selectedDirectUserId, setSelectedDirectUserId] = useState<string>("");
-  const [membersLoading, setMembersLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadMembers = async () => {
-      setMembersLoading(true);
-
-      try {
-        const response = await fetch(`/api/workspaces/${workspaceId}`, {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to load workspace members");
-        }
-
-        const data = (await response.json()) as WorkspaceSummaryResponse;
-
-        if (isActive) {
-          const members = Array.isArray(data?.members) ? data.members : [];
-          setWorkspaceMembers(
-            members.filter((member) => member.id !== data.currentUserId),
-          );
-        }
-      } catch {
-        if (isActive) {
-          setWorkspaceMembers([]);
-        }
-      } finally {
-        if (isActive) {
-          setMembersLoading(false);
-        }
-      }
-    };
-
-    void loadMembers();
-
-    return () => {
-      isActive = false;
-    };
-  }, [workspaceId]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -93,10 +32,6 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       ...prev,
       [name]: value,
     }));
-
-    if (name === "channelType" && value !== "direct") {
-      setSelectedDirectUserId("");
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,25 +39,13 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
     setError(null);
     setLoading(true);
 
-    if (formData.channelType === "direct" && !selectedDirectUserId) {
-      setLoading(false);
-      setError("Select a workspace member for the direct channel.");
-      return;
-    }
-
     try {
       const response = await fetch(`/api/workspaces/${workspaceId}/channels`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...formData,
-          directUserId:
-            formData.channelType === "direct"
-              ? Number.parseInt(selectedDirectUserId, 10)
-              : null,
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
@@ -215,39 +138,13 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               <option value="direct">Direct</option>
             </select>
             <p className="mt-1 text-xs text-dark-4 dark:text-dark-6">
-              {formData.channelType === "direct"
-                ? "Direct channels are only visible to you and one other workspace member"
-                : "Public channels are visible to all workspace members"}
+              {formData.channelType === "public"
+                ? "Visible to all workspace members"
+                : formData.channelType === "direct"
+                ? "Private 1-on-1 conversation — max 2 members"
+                : "Invite-only — only invited members can view"}
             </p>
           </div>
-
-          {formData.channelType === "direct" && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
-                Direct Channel Member
-              </label>
-              <select
-                value={selectedDirectUserId}
-                onChange={(event) =>
-                  setSelectedDirectUserId(event.target.value)
-                }
-                disabled={loading || membersLoading}
-                className="w-full rounded-lg border border-stroke bg-white px-4 py-2 text-dark outline-none transition focus:border-primary dark:border-stroke-dark dark:bg-gray-dark dark:text-white"
-              >
-                <option value="">Select a workspace member</option>
-                {workspaceMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.nickname || member.username} ({member.email})
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-dark-4 dark:text-dark-6">
-                {membersLoading
-                  ? "Loading workspace members..."
-                  : "This channel will only be visible to the two selected users."}
-              </p>
-            </div>
-          )}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-dark dark:text-white">

@@ -1,8 +1,15 @@
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import ClickOutside from "@/components/ClickOutside";
 import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
+
+const resolveImageUrl = (value: string | null | undefined) => {
+  if (!value) return null;
+  if (value.startsWith("http") || value.startsWith("/")) return value;
+  return null;
+};
 
 const DropdownUser = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -15,11 +22,32 @@ const DropdownUser = () => {
   };
 
   const displayName =
+    session?.user?.nickname ||
     session?.user?.username ||
     session?.user?.name ||
     session?.user?.email ||
-    "Jhon Smith";
+    "User";
   const initial = displayName.charAt(0).toUpperCase();
+  const avatarUrl = resolveImageUrl(session?.user?.image);
+
+  const Avatar = ({ size }: { size: number }) =>
+    avatarUrl ? (
+      <Image
+        src={avatarUrl}
+        alt={displayName}
+        width={size}
+        height={size}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    ) : (
+      <span
+        className="flex items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white"
+        style={{ width: size, height: size }}
+      >
+        {initial}
+      </span>
+    );
 
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
@@ -29,14 +57,25 @@ const DropdownUser = () => {
         aria-label="Open user menu"
         className="flex items-center gap-3 rounded-full py-1 pr-1 text-left"
       >
-        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
-          {initial}
+        <span className="relative block h-12 w-12 shrink-0 rounded-full">
+          <Avatar size={48} />
+          <span
+            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
+              !session?.user?.status_emoji
+                ? "bg-green"
+                : session?.user?.status_emoji === "🟡"
+                  ? "bg-yellow-400"
+                  : session?.user?.status_emoji === "🔴"
+                    ? "bg-red"
+                    : session?.user?.status_emoji === "⚫"
+                      ? "bg-gray-400"
+                      : "bg-green"
+            }`}
+          />
         </span>
 
         <span className="hidden items-center gap-2 font-medium text-dark dark:text-dark-6 lg:flex">
-          <span>
-            {session?.user?.username || session?.user?.name || "Jhon Smith"}
-          </span>
+          <span>{displayName}</span>
 
           <svg
             className={`fill-current duration-200 ease-in ${dropdownOpen && "rotate-180"}`}
@@ -56,29 +95,36 @@ const DropdownUser = () => {
         </span>
       </button>
 
-      {/* <!-- Dropdown Star --> */}
       {dropdownOpen && (
-        <div
-          className={`absolute right-0 mt-7.5 flex w-[280px] flex-col rounded-lg border-[0.5px] border-stroke bg-white shadow-default dark:border-dark-3 dark:bg-gray-dark`}
-        >
+        <div className="absolute right-0 mt-7.5 flex w-[280px] flex-col rounded-lg border-[0.5px] border-stroke bg-white shadow-default dark:border-dark-3 dark:bg-gray-dark">
           <div className="flex items-center gap-2.5 px-5 pb-5.5 pt-3.5">
-            <span className="relative block h-12 w-12 rounded-full">
-              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-200 text-lg font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
-                {initial}
-              </span>
-
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green dark:border-gray-dark"></span>
+            <span className="relative block h-12 w-12 shrink-0 rounded-full">
+              <Avatar size={48} />
+              <span
+                className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
+                  !session?.user?.status_emoji
+                    ? "bg-green"
+                    : session?.user?.status_emoji === "🟡"
+                      ? "bg-yellow-400"
+                      : session?.user?.status_emoji === "🔴"
+                        ? "bg-red"
+                        : session?.user?.status_emoji === "⚫"
+                          ? "bg-gray-400"
+                          : "bg-green"
+                }`}
+              />
             </span>
 
             <span className="block">
               <span className="block font-medium text-dark dark:text-white">
-                {session?.user?.username || session?.user?.name || "Jhon Smith"}
+                {displayName}
               </span>
               <span className="block font-medium text-dark-5 dark:text-dark-6">
-                {session?.user?.email || "jonson@nextadmin.com"}
+                {session?.user?.email || ""}
               </span>
             </span>
           </div>
+
           <ul className="flex flex-col gap-1 border-y-[0.5px] border-stroke p-2.5 dark:border-dark-3">
             <li>
               <Link
@@ -110,6 +156,7 @@ const DropdownUser = () => {
               </Link>
             </li>
           </ul>
+
           <div className="p-2.5">
             <button
               onClick={handleLogout}
@@ -144,7 +191,6 @@ const DropdownUser = () => {
           </div>
         </div>
       )}
-      {/* <!-- Dropdown End --> */}
     </ClickOutside>
   );
 };
