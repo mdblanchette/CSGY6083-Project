@@ -269,7 +269,7 @@ const WorkspaceDashboard = () => {
       const res = await fetch(`/api/channels/${selectedChannelId}/members`, { method: "DELETE" });
       const data = await res.json();
       if (res.ok) {
-        toast.success("You have left the channel.");
+        toast.success(data.channelDeleted ? "Channel deleted (no members remaining)." : "You have left the channel.");
         closeChannelDetail(); reloadSummary();
       } else {
         toast.error(data.error || "Failed to leave channel");

@@ -64,10 +64,24 @@ export async function DELETE(
       }
     }
 
+    const channelType = (memberRow.rows[0].channel_type as string).toLowerCase();
+
     await query(
       `DELETE FROM channel_members WHERE channel_id = $1 AND user_id = $2`,
       [channelId, userId],
     );
+
+    // Auto-delete private/direct channels when the last member leaves
+    if (channelType !== "public") {
+      const remaining = await query(
+        `SELECT COUNT(*)::int AS count FROM channel_members WHERE channel_id = $1`,
+        [channelId],
+      );
+      if ((remaining.rows[0] as { count: number }).count === 0) {
+        await query(`DELETE FROM channels WHERE channel_id = $1`, [channelId]);
+        return NextResponse.json({ success: true, channelDeleted: true });
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
