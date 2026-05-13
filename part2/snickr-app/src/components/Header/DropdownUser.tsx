@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import ClickOutside from "@/components/ClickOutside";
 import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
+import StatusLight from "@/components/StatusLight";
 
 const resolveImageUrl = (value: string | null | undefined) => {
   if (!value) return null;
@@ -13,8 +14,28 @@ const resolveImageUrl = (value: string | null | undefined) => {
 
 const DropdownUser = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [lastActive, setLastActive] = useState<string | null | undefined>(
+    undefined,
+  );
 
   const { data: session } = useSession();
+
+  useEffect(() => {
+    setLastActive(session?.user?.last_active);
+  }, [session?.user?.last_active]);
+
+  useEffect(() => {
+    const handlePresenceUpdate = () => {
+      setLastActive(new Date().toISOString());
+    };
+
+    window.addEventListener("snickr-presence-updated", handlePresenceUpdate);
+    return () =>
+      window.removeEventListener(
+        "snickr-presence-updated",
+        handlePresenceUpdate,
+      );
+  }, []);
 
   const handleLogout = async () => {
     await signOut();
@@ -59,18 +80,12 @@ const DropdownUser = () => {
       >
         <span className="relative block h-12 w-12 shrink-0 rounded-full">
           <Avatar size={48} />
-          <span
-            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
-              !session?.user?.status_emoji
-                ? "bg-green"
-                : session?.user?.status_emoji === "🟡"
-                  ? "bg-yellow-400"
-                  : session?.user?.status_emoji === "🔴"
-                    ? "bg-red"
-                    : session?.user?.status_emoji === "⚫"
-                      ? "bg-gray-400"
-                      : "bg-green"
-            }`}
+          <StatusLight
+            lastActive={lastActive}
+            statusEmoji={session?.user?.status_emoji}
+            statusText={session?.user?.status_text}
+            size="medium"
+            className="absolute bottom-0 right-0"
           />
         </span>
 
@@ -100,18 +115,12 @@ const DropdownUser = () => {
           <div className="flex items-center gap-2.5 px-5 pb-5.5 pt-3.5">
             <span className="relative block h-12 w-12 shrink-0 rounded-full">
               <Avatar size={48} />
-              <span
-                className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-dark ${
-                  !session?.user?.status_emoji
-                    ? "bg-green"
-                    : session?.user?.status_emoji === "🟡"
-                      ? "bg-yellow-400"
-                      : session?.user?.status_emoji === "🔴"
-                        ? "bg-red"
-                        : session?.user?.status_emoji === "⚫"
-                          ? "bg-gray-400"
-                          : "bg-green"
-                }`}
+              <StatusLight
+                lastActive={lastActive}
+                statusEmoji={session?.user?.status_emoji}
+                statusText={session?.user?.status_text}
+                size="medium"
+                className="absolute bottom-0 right-0"
               />
             </span>
 

@@ -27,6 +27,8 @@ type WorkspaceSummary = {
     email: string;
     username: string;
     nickname: string | null;
+    statusEmoji: string | null;
+    statusText: string | null;
     lastActive: string | null;
     isAdmin: boolean;
     isOwner: boolean;
@@ -139,6 +141,8 @@ const buildSummary = async (
         u.email,
         u.username,
         u.nickname,
+        u.status_emoji AS "statusEmoji",
+        u.status_text AS "statusText",
         u.last_active AS "lastActive",
         wm.is_admin AS "isAdmin",
         wm.is_owner AS "isOwner",

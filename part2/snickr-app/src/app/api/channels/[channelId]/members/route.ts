@@ -18,7 +18,10 @@ export async function POST(
     const { channelId: channelIdParam } = await context.params;
     const channelId = parseChannelId(channelIdParam);
     if (channelId === null) {
-      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid channel id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -36,9 +39,15 @@ export async function POST(
       return NextResponse.json({ error: "Channel not found" }, { status: 404 });
     }
 
-    const { channel_type, workspace_id } = channelRow.rows[0] as { channel_type: string; workspace_id: number };
+    const { channel_type, workspace_id } = channelRow.rows[0] as {
+      channel_type: string;
+      workspace_id: number;
+    };
     if (channel_type.toLowerCase() !== "public") {
-      return NextResponse.json({ error: "Can only self-join public channels" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Can only self-join public channels" },
+        { status: 403 },
+      );
     }
 
     const wsMember = await query(
@@ -46,7 +55,10 @@ export async function POST(
       [workspace_id, userId],
     );
     if (wsMember.rows.length === 0) {
-      return NextResponse.json({ error: "Not a workspace member" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Not a workspace member" },
+        { status: 403 },
+      );
     }
 
     await query(
@@ -59,7 +71,10 @@ export async function POST(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("JOIN CHANNEL ERROR:", error);
-    return NextResponse.json({ error: "Failed to join channel" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to join channel" },
+      { status: 500 },
+    );
   }
 }
 
@@ -72,7 +87,10 @@ export async function DELETE(
     const { channelId: channelIdParam } = await context.params;
     const channelId = parseChannelId(channelIdParam);
     if (channelId === null) {
-      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid channel id" },
+        { status: 400 },
+      );
     }
 
     const session = await getAuthSession();
@@ -91,13 +109,20 @@ export async function DELETE(
       [channelId, userId],
     );
     if (memberRow.rows.length === 0) {
-      return NextResponse.json({ error: "You are not a member of this channel" }, { status: 403 });
+      return NextResponse.json(
+        { error: "You are not a member of this channel" },
+        { status: 403 },
+      );
     }
 
-    const isDirect = (memberRow.rows[0].channel_type as string).toLowerCase() === "direct";
+    const channelType = (
+      memberRow.rows[0].channel_type as string
+    ).toLowerCase();
+    const isDirect = channelType === "direct";
+    const isPublic = channelType === "public";
 
-    // Block last admin from leaving if other members exist (not applicable to direct channels)
-    if (memberRow.rows[0].is_admin && !isDirect) {
+    // Block last admin from leaving only for non-public channels.
+    if (memberRow.rows[0].is_admin && !isDirect && !isPublic) {
       const adminCount = await query(
         `SELECT COUNT(*)::int AS count FROM channel_members
          WHERE channel_id = $1 AND is_admin = true`,
@@ -112,13 +137,14 @@ export async function DELETE(
         (memberCount.rows[0] as { count: number }).count > 1
       ) {
         return NextResponse.json(
-          { error: "You are the only admin. Assign another admin before leaving." },
+          {
+            error:
+              "You are the only admin. Assign another admin before leaving.",
+          },
           { status: 409 },
         );
       }
     }
-
-    const channelType = (memberRow.rows[0].channel_type as string).toLowerCase();
 
     await query(
       `DELETE FROM channel_members WHERE channel_id = $1 AND user_id = $2`,
@@ -140,6 +166,9 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("LEAVE CHANNEL ERROR:", error);
-    return NextResponse.json({ error: "Failed to leave channel" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to leave channel" },
+      { status: 500 },
+    );
   }
 }

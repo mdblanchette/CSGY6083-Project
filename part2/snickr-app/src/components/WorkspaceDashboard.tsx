@@ -19,6 +19,8 @@ type Member = {
   email: string;
   username: string;
   nickname: string | null;
+  statusEmoji: string | null;
+  statusText: string | null;
   lastActive: string | null;
   isAdmin: boolean;
   isOwner: boolean;
@@ -257,11 +259,13 @@ const WorkspaceDashboard = () => {
 
     // Only clear channel context when switching between two real workspaces.
     // Skip when prevId is undefined (initial mount) or null (workspace first loading in).
-    // This preserves the ?channel= param when returning from a profile page.
     if (prevId !== undefined && prevId !== null) {
-      // Preserve search params when replacing to keep ?channel= in URL
-      const searchStr = searchParams.toString();
-      router.replace(pathname + (searchStr ? `?${searchStr}` : ""), {
+      // Remove the channel param from URL when switching workspaces to prevent
+      // loading the old channel in the new workspace context
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("channel");
+      const newSearchStr = params.toString();
+      router.replace(pathname + (newSearchStr ? `?${newSearchStr}` : ""), {
         scroll: false,
       });
       setSelectedChannelId(null);
@@ -1666,6 +1670,8 @@ const WorkspaceDashboard = () => {
                     >
                       <StatusLight
                         lastActive={member.lastActive}
+                        statusEmoji={member.statusEmoji}
+                        statusText={member.statusText}
                         size="small"
                         className="shrink-0"
                       />
