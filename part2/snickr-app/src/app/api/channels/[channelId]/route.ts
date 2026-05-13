@@ -372,10 +372,10 @@ export async function PATCH(
       memberRow.rows[0].is_admin || memberRow.rows[0].is_owner;
     const isCreator: boolean = createdBy === userId;
 
-    // Name and description edits require admin/owner
-    if ((newName !== undefined || newDescription !== undefined) && !isAdminOrOwner) {
+    // Name and description edits require admin/owner OR the channel creator
+    if ((newName !== undefined || newDescription !== undefined) && !isAdminOrOwner && !isCreator) {
       return NextResponse.json(
-        { error: "Only workspace admins can rename or redescribe channels" },
+        { error: "Only workspace admins or the channel creator can rename or redescribe channels" },
         { status: 403 },
       );
     }

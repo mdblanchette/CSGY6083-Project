@@ -682,7 +682,7 @@ const WorkspaceDashboard = () => {
           ) : (
             <div className="mt-2 flex items-center gap-2">
               <h2 className="text-2xl font-bold text-dark dark:text-white"># {channelDetail.channel.name}</h2>
-              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && (
                 <button
                   onClick={() => { setChannelNameInput(channelDetail.channel.name); setEditingChannelName(true); }}
                   className="text-dark-4 transition hover:text-primary dark:text-dark-6"
@@ -718,9 +718,9 @@ const WorkspaceDashboard = () => {
           ) : (
             <div className="mt-2 flex items-start gap-1.5">
               <p className="text-sm text-dark-4 dark:text-dark-6">
-                {channelDetail.channel.description || ((isWorkspaceAdmin || isWorkspaceOwner) ? <span className="italic">No description</span> : null)}
+                {channelDetail.channel.description || ((isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) ? <span className="italic">No description</span> : null)}
               </p>
-              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && (
                 <button
                   onClick={() => { setChannelDescInput(channelDetail.channel.description ?? ""); setEditingChannelDesc(true); }}
                   className="mt-0.5 shrink-0 text-dark-4 transition hover:text-primary dark:text-dark-6"
