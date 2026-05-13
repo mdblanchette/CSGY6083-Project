@@ -20,6 +20,7 @@ type WorkspaceSummary = {
     createdAt: string;
     memberCount: number;
     messageCount: number;
+    isMember: boolean;
   }>;
   members: Array<{
     id: number;
@@ -102,21 +103,18 @@ const buildSummary = async (
         c.channel_type AS type,
         c.description,
         c.created_at AS "createdAt",
-        CASE
-          WHEN LOWER(c.channel_type) = 'public' THEN (
-            SELECT COUNT(*)::int
-            FROM ${tables.workspaceMembers} wm
-            WHERE wm.workspace_id = c.workspace_id
-          )
-          ELSE (
-            SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
-          )
-        END AS "memberCount",
+        (
+          SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
+        ) AS "memberCount",
         (
           SELECT COUNT(*)::int
           FROM ${tables.messages} m
           WHERE m.channel_id = c.channel_id
-        ) AS "messageCount"
+        ) AS "messageCount",
+        EXISTS (
+          SELECT 1 FROM ${tables.channelMembers} cm2
+          WHERE cm2.channel_id = c.channel_id AND cm2.user_id = $2
+        ) AS "isMember"
       FROM ${tables.channels} c
       WHERE c.workspace_id = $1
         AND (

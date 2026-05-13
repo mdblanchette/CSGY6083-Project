@@ -80,16 +80,9 @@ const buildChannelDetail = async (
         c.description,
         c.created_by AS "createdBy",
         c.created_at AS "createdAt",
-        CASE
-          WHEN LOWER(c.channel_type) = 'public' THEN (
-            SELECT COUNT(*)::int
-            FROM ${tables.workspaceMembers} wm
-            WHERE wm.workspace_id = c.workspace_id
-          )
-          ELSE (
-            SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
-          )
-        END AS "memberCount",
+        (
+          SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
+        ) AS "memberCount",
         (
           SELECT COUNT(*)::int
           FROM ${tables.messages} m
@@ -168,15 +161,9 @@ const createMessageForSchema = async (
         c.channel_id AS id,
         c.workspace_id AS "workspaceId",
         c.channel_type AS type,
-        CASE
-          WHEN LOWER(c.channel_type) = 'public' THEN (
-            SELECT COUNT(*)::int FROM ${tables.workspaceMembers} wm
-            WHERE wm.workspace_id = c.workspace_id
-          )
-          ELSE (
-            SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
-          )
-        END AS "memberCount",
+        (
+          SELECT COUNT(*)::int FROM ${tables.channelMembers} cm WHERE cm.channel_id = c.channel_id
+        ) AS "memberCount",
         EXISTS (
           SELECT 1
           FROM ${tables.workspaceMembers} wm
@@ -231,18 +218,11 @@ const createMessageForSchema = async (
       `,
       [channelId, userId],
     );
-  }
-
-  if (isPublicChannel) {
+    // Recount after auto-join
     const memberCountResult = await query(
-      `
-        SELECT COUNT(*)::int AS count
-        FROM ${tables.workspaceMembers}
-        WHERE workspace_id = $1
-      `,
-      [accessRow.workspaceId],
+      `SELECT COUNT(*)::int AS count FROM ${tables.channelMembers} WHERE channel_id = $1`,
+      [channelId],
     );
-
     memberCount = (memberCountResult.rows[0] as { count: number }).count;
   }
 
@@ -359,7 +339,7 @@ export async function PATCH(
     }
 
     const channelRow = await query(
-      `SELECT workspace_id, channel_type FROM channels WHERE channel_id = $1 LIMIT 1`,
+      `SELECT workspace_id, channel_type, created_by FROM channels WHERE channel_id = $1 LIMIT 1`,
       [channelId],
     );
     if (channelRow.rows.length === 0) {
@@ -367,6 +347,7 @@ export async function PATCH(
     }
     const workspaceId: number = channelRow.rows[0].workspace_id;
     const currentType: string = channelRow.rows[0].channel_type;
+    const createdBy: number | null = channelRow.rows[0].created_by;
 
     if (newType !== undefined && currentType.toLowerCase() === "direct") {
       return NextResponse.json(
@@ -380,10 +361,34 @@ export async function PATCH(
        WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
       [workspaceId, userId],
     );
-    if (
-      memberRow.rows.length === 0 ||
-      (!memberRow.rows[0].is_admin && !memberRow.rows[0].is_owner)
-    ) {
+    if (memberRow.rows.length === 0) {
+      return NextResponse.json(
+        { error: "You are not a member of this workspace" },
+        { status: 403 },
+      );
+    }
+
+    const isAdminOrOwner: boolean =
+      memberRow.rows[0].is_admin || memberRow.rows[0].is_owner;
+    const isCreator: boolean = createdBy === userId;
+
+    // Name and description edits require admin/owner OR the channel creator
+    if ((newName !== undefined || newDescription !== undefined) && !isAdminOrOwner && !isCreator) {
+      return NextResponse.json(
+        { error: "Only workspace admins or the channel creator can rename or redescribe channels" },
+        { status: 403 },
+      );
+    }
+
+    // Type toggle requires admin/owner OR the channel creator
+    if (newType !== undefined && !isAdminOrOwner && !isCreator) {
+      return NextResponse.json(
+        { error: "Only workspace admins or the channel creator can change the channel type" },
+        { status: 403 },
+      );
+    }
+
+    if (!isAdminOrOwner && !isCreator) {
       return NextResponse.json(
         { error: "Only workspace admins can update channels" },
         { status: 403 },

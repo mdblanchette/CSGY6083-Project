@@ -15,15 +15,16 @@ type ReadOnlyProfileBoxProps = {
   };
 };
 
-const resolveImageUrl = (value: string | null | undefined, fallback: string) => {
-  if (!value) return fallback;
+const resolveUrl = (value: string | null | undefined) => {
+  if (!value) return null;
   if (value.startsWith("http") || value.startsWith("/")) return value;
-  return fallback;
+  return null;
 };
 
 const ReadOnlyProfileBox = ({ user }: ReadOnlyProfileBoxProps) => {
-  const profilePic = resolveImageUrl(user.image, "/images/user/defaulticon.png");
-  const coverPic = resolveImageUrl(user.coverImage, "/images/cover/cover-01.png");
+  const profilePic = resolveUrl(user.image);
+  const coverPic = resolveUrl(user.coverImage) ?? "/images/cover/cover-01.png";
+  const initial = (user.nickname || user.username || user.email || "?").charAt(0).toUpperCase();
 
   return (
     <div className="mx-auto max-w-2xl overflow-hidden rounded-[10px] bg-white shadow-1 dark:bg-gray-dark dark:shadow-card">
@@ -40,13 +41,19 @@ const ReadOnlyProfileBox = ({ user }: ReadOnlyProfileBoxProps) => {
       <div className="px-4 pb-6 text-center lg:pb-8 xl:pb-11.5">
         <div className="relative z-30 mx-auto -mt-22 h-30 w-30 rounded-full bg-white/20 p-1 backdrop-blur sm:h-44 sm:w-44 sm:p-3">
           <div className="relative h-full w-full overflow-hidden rounded-full drop-shadow-2">
-            <Image
-              src={profilePic}
-              alt="profile"
-              fill
-              className="object-cover object-center"
-              sizes="176px"
-            />
+            {profilePic ? (
+              <Image
+                src={profilePic}
+                alt="profile"
+                fill
+                className="object-cover object-center"
+                sizes="176px"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gray-200 text-5xl font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
+                {initial}
+              </div>
+            )}
           </div>
         </div>
 

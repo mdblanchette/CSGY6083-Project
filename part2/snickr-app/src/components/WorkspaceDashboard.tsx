@@ -38,6 +38,7 @@ type WorkspaceSummary = {
     createdAt: string;
     memberCount: number;
     messageCount: number;
+    isMember: boolean;
   }>;
   members: Member[];
 };
@@ -48,6 +49,7 @@ type ChannelDetail = {
     name: string;
     type: string;
     description: string | null;
+    createdBy: number | null;
     createdAt: string;
     memberCount: number;
     messageCount: number;
@@ -136,6 +138,7 @@ const WorkspaceDashboard = () => {
   const [pendingChannelInvites, setPendingChannelInvites] = useState<
     PendingChannelInvitation[]
   >([]);
+  const [joiningChannel, setJoiningChannel] = useState(false);
   const [leavingWorkspace, setLeavingWorkspace] = useState(false);
   const [leavingChannel, setLeavingChannel] = useState(false);
   const [deletingChannel, setDeletingChannel] = useState(false);
@@ -212,16 +215,6 @@ const WorkspaceDashboard = () => {
       setChannelDetail(null);
       setPendingChannelInvites([]);
     }
-  }, [activeWorkspaceId]);
-
-  useEffect(() => {
-    setSelectedChannelId(null);
-    setChannelDetail(null);
-    setChannelLoading(false);
-    setMessageBody("");
-    setMessageError(null);
-    setMessageSubmitting(false);
-    setShowCreateChannelModal(false);
   }, [activeWorkspaceId]);
 
   const reloadSummary = async () => {
@@ -396,6 +389,25 @@ const WorkspaceDashboard = () => {
       toast.error("Failed to leave channel");
     } finally {
       setLeavingChannel(false);
+    }
+  };
+
+  const handleJoinChannel = async (channelId: number) => {
+    setJoiningChannel(true);
+    try {
+      const res = await fetch(`/api/channels/${channelId}/members`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Joined channel!");
+        await reloadSummary();
+        loadChannelDetail(channelId);
+      } else {
+        toast.error(data.error || "Failed to join channel");
+      }
+    } catch {
+      toast.error("Failed to join channel");
+    } finally {
+      setJoiningChannel(false);
     }
   };
 
@@ -902,7 +914,7 @@ const WorkspaceDashboard = () => {
               <h2 className="text-2xl font-bold text-dark dark:text-white">
                 # {channelDetail.channel.name}
               </h2>
-              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && (
                 <button
                   onClick={() => {
                     setChannelNameInput(channelDetail.channel.name);
@@ -962,11 +974,11 @@ const WorkspaceDashboard = () => {
             <div className="mt-2 flex items-start gap-1.5">
               <p className="text-sm text-dark-4 dark:text-dark-6">
                 {channelDetail.channel.description ||
-                  (isWorkspaceAdmin || isWorkspaceOwner ? (
+                  ((isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) ? (
                     <span className="italic">No description</span>
                   ) : null)}
               </p>
-              {(isWorkspaceAdmin || isWorkspaceOwner) && (
+              {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && (
                 <button
                   onClick={() => {
                     setChannelDescInput(
@@ -999,7 +1011,7 @@ const WorkspaceDashboard = () => {
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
               {channelDetail.channel.type}
             </span>
-            {(isWorkspaceAdmin || isWorkspaceOwner) && !isDirect && (
+            {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && !isDirect && (
               <button
                 onClick={handleToggleChannelType}
                 disabled={togglingChannelType}
@@ -1289,63 +1301,79 @@ const WorkspaceDashboard = () => {
         {/* ── Left: Channels ── */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
-                  Channels
-                </p>
-                <h3 className="mt-1 text-lg font-semibold text-dark dark:text-white">
-                  {summary.channels.length} channel
-                  {summary.channels.length !== 1 ? "s" : ""}
-                </h3>
-              </div>
-              {currentMember && (
-                <button
-                  type="button"
-                  onClick={() => setShowCreateChannelModal(true)}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
-                >
-                  + Add
-                </button>
-              )}
-            </div>
-            <div className="mt-6 space-y-3">
-              {summary.channels.length > 0 ? (
-                summary.channels.map((channel) => (
-                  <button
-                    key={channel.id}
-                    onClick={() => loadChannelDetail(channel.id)}
-                    className="w-full rounded-xl border border-stroke bg-gray-1 p-4 text-left transition hover:border-primary dark:border-stroke-dark dark:bg-dark-3"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-semibold text-dark dark:text-white">
-                          # {channel.name}
-                        </h4>
-                        {channel.description && (
-                          <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">
-                            {channel.description}
-                          </p>
-                        )}
-                        <p className="mt-2 text-xs text-dark-4 dark:text-dark-6">
-                          {channel.memberCount} member
-                          {channel.memberCount !== 1 ? "s" : ""} •{" "}
-                          {channel.messageCount} message
-                          {channel.messageCount !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                      <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
-                        {channel.type}
-                      </span>
+            {(() => {
+              const memberChannels = summary.channels.filter((ch) => ch.isMember);
+              const joinable = summary.channels.filter(
+                (ch) => ch.type.toLowerCase() === "public" && !ch.isMember,
+              );
+              return (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">Channels</p>
+                      <h3 className="mt-1 text-lg font-semibold text-dark dark:text-white">
+                        {memberChannels.length} channel{memberChannels.length !== 1 ? "s" : ""}
+                      </h3>
                     </div>
-                  </button>
-                ))
-              ) : (
-                <p className="py-8 text-center text-dark-4 dark:text-dark-6">
-                  No channels yet. Create one to get started.
-                </p>
-              )}
-            </div>
+                    {currentMember && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        {joinable.length > 0 && (
+                          <select
+                            disabled={joiningChannel}
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) handleJoinChannel(Number(e.target.value));
+                            }}
+                            className="rounded-lg border border-stroke bg-white px-3 py-2 text-sm text-dark-4 outline-none transition focus:border-primary disabled:opacity-60 dark:border-stroke-dark dark:bg-dark-3 dark:text-dark-6"
+                          >
+                            <option value="" disabled>
+                              {joiningChannel ? "Joining…" : "Browse channels…"}
+                            </option>
+                            {joinable.map((ch) => (
+                              <option key={ch.id} value={ch.id}>
+                                # {ch.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button type="button" onClick={() => setShowCreateChannelModal(true)}
+                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90">
+                          + Add
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-6 space-y-3">
+                    {memberChannels.length > 0 ? (
+                      memberChannels.map((channel) => (
+                        <button key={channel.id} onClick={() => loadChannelDetail(channel.id)}
+                          className="w-full rounded-xl border border-stroke bg-gray-1 p-4 text-left transition hover:border-primary dark:border-stroke-dark dark:bg-dark-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold text-dark dark:text-white"># {channel.name}</h4>
+                              {channel.description && <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">{channel.description}</p>}
+                              <p className="mt-2 text-xs text-dark-4 dark:text-dark-6">
+                                {channel.memberCount} member{channel.memberCount !== 1 ? "s" : ""} •{" "}
+                                {channel.messageCount} message{channel.messageCount !== 1 ? "s" : ""}
+                              </p>
+                            </div>
+                            <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
+                              {channel.type}
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="py-8 text-center text-dark-4 dark:text-dark-6">
+                        {joinable.length > 0
+                          ? "Welcome! Join or create some channels to get started."
+                          : "No channels yet. Create one to get started."}
+                      </p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* Pending channel invitations */}
