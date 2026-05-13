@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   const formatedEmail = email.toLowerCase();
-  const formattedUsername = String(username).trim();
+  const formattedUsername = String(username).trim().toLowerCase();
 
   const exist = await query(
     `SELECT 1 FROM users WHERE email = $1 OR username = $2 LIMIT 1`,

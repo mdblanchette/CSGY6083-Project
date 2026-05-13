@@ -16,6 +16,7 @@ function ProfileContent() {
   const [coverFile, setCoverFile] = useState<File | undefined>();
   const searchParams = useSearchParams();
   const returnChannel = searchParams.get("returnChannel");
+  const returnWorkspace = searchParams.get("returnWorkspace");
 
   if (showCreateCard) {
     return (
@@ -34,6 +35,14 @@ function ProfileContent() {
             className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
           >
             ← Back to Channel
+          </Link>
+        )}
+        {returnWorkspace && !returnChannel && (
+          <Link
+            href={`/?workspace=${returnWorkspace}`}
+            className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
+          >
+            ← Back to Workspace
           </Link>
         )}
         <h1 className="text-heading-2 font-bold text-dark dark:text-white">
@@ -58,7 +67,12 @@ function ProfileContent() {
             </p>
           </div>
 
-          <SettingBoxes file={file} coverFile={coverFile} />
+          <SettingBoxes
+            file={file}
+            coverFile={coverFile}
+            returnChannel={returnChannel}
+            returnWorkspace={returnWorkspace}
+          />
         </div>
       </div>
     </div>

@@ -17,18 +17,27 @@ interface SettingsFormData {
 interface SettingBoxesProps {
   file?: File;
   coverFile?: File;
+  returnChannel?: string;
+  returnWorkspace?: string;
 }
 
-const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
+const SettingBoxes = ({
+  file,
+  coverFile,
+  returnChannel,
+  returnWorkspace,
+}: SettingBoxesProps) => {
   const { data: session, update } = useSession();
-  const sessionUser = session?.user as {
-    email?: string | null;
-    username?: string | null;
-    nickname?: string | null;
-    status_emoji?: string | null;
-    status_text?: string | null;
-    bio?: string | null;
-  } | undefined;
+  const sessionUser = session?.user as
+    | {
+        email?: string | null;
+        username?: string | null;
+        nickname?: string | null;
+        status_emoji?: string | null;
+        status_text?: string | null;
+        bio?: string | null;
+      }
+    | undefined;
 
   const [data, setData] = useState<SettingsFormData>({
     nickname: sessionUser?.nickname ?? "",
@@ -165,7 +174,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white py-2.5 px-4.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
+                    className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white px-4.5 py-2.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
                     type="text"
                     name="nickname"
                     id="nickname"
@@ -185,7 +194,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full rounded-[7px] border-[1.5px] border-slate-300 bg-slate-100 py-2.5 px-4.5 text-slate-500 placeholder:text-slate-400 cursor-not-allowed focus:border-primary focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:placeholder:text-slate-500 dark:focus:border-primary"
+                    className="w-full cursor-not-allowed rounded-[7px] border-[1.5px] border-slate-300 bg-slate-100 px-4.5 py-2.5 text-slate-500 placeholder:text-slate-400 focus:border-primary focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:placeholder:text-slate-500 dark:focus:border-primary"
                     type="text"
                     name="username"
                     id="username"
@@ -206,7 +215,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
               </label>
               <div className="relative">
                 <input
-                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white py-2.5 px-4.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
+                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white px-4.5 py-2.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
                   type="email"
                   name="email"
                   id="email"
@@ -226,7 +235,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
               </label>
               <div className="relative">
                 <select
-                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white py-2.5 px-4.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
+                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white px-4.5 py-2.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
                   name="status_emoji"
                   id="status_emoji"
                   value={data.status_emoji || ""}
@@ -250,7 +259,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
               </label>
               <div className="relative">
                 <input
-                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white py-2.5 px-4.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
+                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white px-4.5 py-2.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
                   type="text"
                   name="status_text"
                   id="status_text"
@@ -271,7 +280,7 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
               </label>
               <div className="relative">
                 <textarea
-                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white py-5 px-4.5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
+                  className="w-full rounded-[7px] border-[1.5px] border-stroke bg-white px-4.5 py-5 text-dark focus:border-primary focus-visible:outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary"
                   name="bio"
                   id="bio"
                   rows={6}
@@ -288,6 +297,14 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
                 className="flex justify-center rounded-[7px] border border-stroke px-6 py-[7px] font-medium text-dark hover:shadow-1 dark:border-dark-3 dark:text-white"
                 type="button"
                 onClick={() => {
+                  if (returnChannel) {
+                    router.push(`/?channel=${returnChannel}`);
+                    return;
+                  }
+                  if (returnWorkspace) {
+                    router.push(`/?workspace=${returnWorkspace}`);
+                    return;
+                  }
                   if (window.history.length > 1) {
                     router.back();
                     return;

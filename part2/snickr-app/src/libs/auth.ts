@@ -150,8 +150,12 @@ export const authOptions: NextAuthOptions = {
             status_emoji: dbUser?.status_emoji || null,
             status_text: dbUser?.status_text || null,
             bio: dbUser?.bio || null,
-            last_active: dbUser?.last_active ? new Date(dbUser.last_active).toISOString() : null,
-            created_at: dbUser?.created_at ? new Date(dbUser.created_at).toISOString() : null,
+            last_active: dbUser?.last_active
+              ? new Date(dbUser.last_active).toISOString()
+              : null,
+            created_at: dbUser?.created_at
+              ? new Date(dbUser.created_at).toISOString()
+              : null,
             image: dbUser?.image || token.picture,
             coverImage: dbUser?.cover_image,
           },

@@ -79,12 +79,16 @@ export default async function ProfileViewPage({
   searchParams,
 }: {
   params: { username: string };
-  searchParams: { returnChannel?: string };
+  searchParams: { returnChannel?: string; returnWorkspace?: string };
 }) {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.username === params.username) {
-    const qs = searchParams.returnChannel ? `?returnChannel=${searchParams.returnChannel}` : "";
+    const qs = searchParams.returnChannel
+      ? `?returnChannel=${searchParams.returnChannel}`
+      : searchParams.returnWorkspace
+        ? `?returnWorkspace=${searchParams.returnWorkspace}`
+        : "";
     redirect(`/profile${qs}`);
   }
 
@@ -95,6 +99,7 @@ export default async function ProfileViewPage({
   }
 
   const returnChannel = searchParams.returnChannel;
+  const returnWorkspace = searchParams.returnWorkspace;
 
   return (
     <DefaultLayout>
@@ -106,6 +111,14 @@ export default async function ProfileViewPage({
               className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
             >
               ← Back to Channel
+            </Link>
+          )}
+          {returnWorkspace && !returnChannel && (
+            <Link
+              href={`/?workspace=${returnWorkspace}`}
+              className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
+            >
+              ← Back to Workspace
             </Link>
           )}
           <h1 className="text-heading-2 font-bold text-dark dark:text-white">
