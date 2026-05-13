@@ -981,7 +981,11 @@ const WorkspaceDashboard = () => {
                         </button>
                       ))
                     ) : (
-                      <p className="py-8 text-center text-dark-4 dark:text-dark-6">No channels yet. Create one to get started.</p>
+                      <p className="py-8 text-center text-dark-4 dark:text-dark-6">
+                        {joinable.length > 0
+                          ? "Welcome! Join or create some channels to get started."
+                          : "No channels yet. Create one to get started."}
+                      </p>
                     )}
                   </div>
                 </>
