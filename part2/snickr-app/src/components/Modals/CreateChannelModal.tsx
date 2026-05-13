@@ -132,6 +132,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
       const channel = await response.json();
       toast.success("Channel created successfully!");
+      window.dispatchEvent(new Event("snickr-workspace-updated"));
       onClose();
 
       if (onChannelCreated) {

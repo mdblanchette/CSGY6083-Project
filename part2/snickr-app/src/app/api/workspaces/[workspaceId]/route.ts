@@ -27,6 +27,7 @@ type WorkspaceSummary = {
     email: string;
     username: string;
     nickname: string | null;
+    lastActive: string | null;
     isAdmin: boolean;
     isOwner: boolean;
     joinedAt: string;
@@ -138,6 +139,7 @@ const buildSummary = async (
         u.email,
         u.username,
         u.nickname,
+        u.last_active AS "lastActive",
         wm.is_admin AS "isAdmin",
         wm.is_owner AS "isOwner",
         wm.joined_at AS "joinedAt"

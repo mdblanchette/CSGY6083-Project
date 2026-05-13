@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -10,6 +10,7 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 import CreateChannelModal from "./Modals/CreateChannelModal";
 import WorkspaceInvitationForm from "./WorkspaceInvitationForm";
 import ChannelInvitationForm from "./ChannelInvitationForm";
+import StatusLight from "./StatusLight";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ type Member = {
   email: string;
   username: string;
   nickname: string | null;
+  lastActive: string | null;
   isAdmin: boolean;
   isOwner: boolean;
   joinedAt: string;
@@ -79,6 +81,10 @@ type ChannelMessageResponse = {
   channel: { id: number; memberCount: number };
 };
 
+type LoadChannelDetailOptions = {
+  silent?: boolean;
+  preserveDraft?: boolean;
+};
 type PendingChannelInvitation = {
   id: number;
   channelId: number;
@@ -196,6 +202,53 @@ const WorkspaceDashboard = () => {
   };
 
   useEffect(() => {
+    if (!activeWorkspaceId) return;
+
+    const refreshVisibleSummary = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      await reloadSummary();
+    };
+
+    void refreshVisibleSummary();
+
+    const intervalId = window.setInterval(() => {
+      void refreshVisibleSummary();
+    }, 5000);
+
+    const handlePresenceUpdate = () => {
+      void refreshVisibleSummary();
+    };
+
+    const handleWorkspaceUpdate = () => {
+      void refreshVisibleSummary();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshVisibleSummary();
+      }
+    };
+
+    window.addEventListener("snickr-presence-updated", handlePresenceUpdate);
+    window.addEventListener("snickr-workspace-updated", handleWorkspaceUpdate);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener(
+        "snickr-presence-updated",
+        handlePresenceUpdate,
+      );
+      window.removeEventListener(
+        "snickr-workspace-updated",
+        handleWorkspaceUpdate,
+      );
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
     const prevId = prevWorkspaceIdRef.current;
     prevWorkspaceIdRef.current = activeWorkspaceId;
 
@@ -231,24 +284,55 @@ const WorkspaceDashboard = () => {
 
   // ── Channel detail ────────────────────────────────────────────────────────
 
-  const doLoadChannelDetail = async (channelId: number) => {
-    setSelectedChannelId(channelId);
-    setChannelLoading(true);
-    setMessageBody("");
-    setMessageError(null);
-    try {
-      const res = await fetch(
-        `/api/channels/${channelId}?workspaceId=${activeWorkspaceId}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) throw new Error();
-      setChannelDetail(await res.json());
-    } catch {
-      setChannelDetail(null);
-    } finally {
-      setChannelLoading(false);
-    }
-  };
+  const doLoadChannelDetail = useCallback(
+    async (channelId: number, options: LoadChannelDetailOptions = {}) => {
+      const { silent = false, preserveDraft = false } = options;
+
+      if (!silent) {
+        setSelectedChannelId(channelId);
+        setChannelLoading(true);
+        if (!preserveDraft) {
+          setMessageBody("");
+        }
+        setMessageError(null);
+      }
+
+      try {
+        const res = await fetch(
+          `/api/channels/${channelId}?workspaceId=${activeWorkspaceId}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error();
+        const nextChannelDetail = (await res.json()) as ChannelDetail;
+        setChannelDetail(nextChannelDetail);
+        setSummary((prev) =>
+          prev
+            ? {
+                ...prev,
+                channels: prev.channels.map((ch) =>
+                  ch.id === channelId
+                    ? {
+                        ...ch,
+                        memberCount: nextChannelDetail.channel.memberCount,
+                        messageCount: nextChannelDetail.channel.messageCount,
+                      }
+                    : ch,
+                ),
+              }
+            : prev,
+        );
+      } catch {
+        if (!silent) {
+          setChannelDetail(null);
+        }
+      } finally {
+        if (!silent) {
+          setChannelLoading(false);
+        }
+      }
+    },
+    [activeWorkspaceId],
+  );
 
   // Clicking a channel updates the URL; the effect below does the actual load
   const loadChannelDetail = (channelId: number) => {
@@ -271,7 +355,74 @@ const WorkspaceDashboard = () => {
     }
     // Always (re)load when the URL channel changes, including on initial mount
     doLoadChannelDetail(channelIdFromUrl);
-  }, [channelIdFromUrl]);
+  }, [channelIdFromUrl, doLoadChannelDetail]);
+
+  useEffect(() => {
+    if (selectedChannelId === null || !activeWorkspaceId) return;
+
+    let cancelled = false;
+
+    const refreshChannelDetail = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      try {
+        const res = await fetch(
+          `/api/channels/${selectedChannelId}?workspaceId=${activeWorkspaceId}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+
+        const nextChannelDetail = (await res.json()) as ChannelDetail;
+        if (cancelled) return;
+
+        setChannelDetail(nextChannelDetail);
+        setSummary((prev) =>
+          prev
+            ? {
+                ...prev,
+                channels: prev.channels.map((ch) =>
+                  ch.id === selectedChannelId
+                    ? {
+                        ...ch,
+                        memberCount: nextChannelDetail.channel.memberCount,
+                        messageCount: nextChannelDetail.channel.messageCount,
+                      }
+                    : ch,
+                ),
+              }
+            : prev,
+        );
+      } catch {
+        /* keep the current channel view if the refresh fails */
+      }
+    };
+
+    void refreshChannelDetail();
+
+    const intervalId = window.setInterval(() => {
+      void refreshChannelDetail();
+    }, 3000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshChannelDetail();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void refreshChannelDetail();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [selectedChannelId, activeWorkspaceId]);
 
   const submitMessage = async () => {
     if (!selectedChannelId || !channelDetail) return;
@@ -395,7 +546,9 @@ const WorkspaceDashboard = () => {
   const handleJoinChannel = async (channelId: number) => {
     setJoiningChannel(true);
     try {
-      const res = await fetch(`/api/channels/${channelId}/members`, { method: "POST" });
+      const res = await fetch(`/api/channels/${channelId}/members`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (res.ok) {
         toast.success("Joined channel!");
@@ -855,7 +1008,7 @@ const WorkspaceDashboard = () => {
             ← Back to Workspace
           </button>
           <div className="flex gap-2">
-            {isChannelMember && (isPrivate || isDirect) && (
+            {isChannelMember && (
               <button
                 onClick={handleLeaveChannel}
                 disabled={leavingChannel}
@@ -974,7 +1127,7 @@ const WorkspaceDashboard = () => {
             <div className="mt-2 flex items-start gap-1.5">
               <p className="text-sm text-dark-4 dark:text-dark-6">
                 {channelDetail.channel.description ||
-                  ((isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) ? (
+                  (isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator ? (
                     <span className="italic">No description</span>
                   ) : null)}
               </p>
@@ -1011,19 +1164,20 @@ const WorkspaceDashboard = () => {
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
               {channelDetail.channel.type}
             </span>
-            {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) && !isDirect && (
-              <button
-                onClick={handleToggleChannelType}
-                disabled={togglingChannelType}
-                className="inline-flex rounded-full border border-stroke px-3 py-1 text-xs font-medium text-dark-4 transition hover:border-primary hover:text-primary disabled:opacity-60 dark:border-stroke-dark dark:text-dark-6"
-              >
-                {togglingChannelType
-                  ? "Updating…"
-                  : isPrivate
-                    ? "Make Public"
-                    : "Make Private"}
-              </button>
-            )}
+            {(isWorkspaceAdmin || isWorkspaceOwner || isChannelCreator) &&
+              !isDirect && (
+                <button
+                  onClick={handleToggleChannelType}
+                  disabled={togglingChannelType}
+                  className="inline-flex rounded-full border border-stroke px-3 py-1 text-xs font-medium text-dark-4 transition hover:border-primary hover:text-primary disabled:opacity-60 dark:border-stroke-dark dark:text-dark-6"
+                >
+                  {togglingChannelType
+                    ? "Updating…"
+                    : isPrivate
+                      ? "Make Public"
+                      : "Make Private"}
+                </button>
+              )}
             <p className="text-xs text-dark-4 dark:text-dark-6">
               {channelDetail.channel.memberCount} member
               {channelDetail.channel.memberCount !== 1 ? "s" : ""} •{" "}
@@ -1302,7 +1456,9 @@ const WorkspaceDashboard = () => {
         <div className="space-y-6">
           <div className="rounded-2xl border border-stroke bg-white p-6 shadow-sm dark:border-stroke-dark dark:bg-gray-dark">
             {(() => {
-              const memberChannels = summary.channels.filter((ch) => ch.isMember);
+              const memberChannels = summary.channels.filter(
+                (ch) => ch.isMember,
+              );
               const joinable = summary.channels.filter(
                 (ch) => ch.type.toLowerCase() === "public" && !ch.isMember,
               );
@@ -1310,9 +1466,12 @@ const WorkspaceDashboard = () => {
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">Channels</p>
+                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-dark-4 dark:text-dark-6">
+                        Channels
+                      </p>
                       <h3 className="mt-1 text-lg font-semibold text-dark dark:text-white">
-                        {memberChannels.length} channel{memberChannels.length !== 1 ? "s" : ""}
+                        {memberChannels.length} channel
+                        {memberChannels.length !== 1 ? "s" : ""}
                       </h3>
                     </div>
                     {currentMember && (
@@ -1322,7 +1481,8 @@ const WorkspaceDashboard = () => {
                             disabled={joiningChannel}
                             value=""
                             onChange={(e) => {
-                              if (e.target.value) handleJoinChannel(Number(e.target.value));
+                              if (e.target.value)
+                                handleJoinChannel(Number(e.target.value));
                             }}
                             className="rounded-lg border border-stroke bg-white px-3 py-2 text-sm text-dark-4 outline-none transition focus:border-primary disabled:opacity-60 dark:border-stroke-dark dark:bg-dark-3 dark:text-dark-6"
                           >
@@ -1336,8 +1496,11 @@ const WorkspaceDashboard = () => {
                             ))}
                           </select>
                         )}
-                        <button type="button" onClick={() => setShowCreateChannelModal(true)}
-                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90">
+                        <button
+                          type="button"
+                          onClick={() => setShowCreateChannelModal(true)}
+                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
+                        >
                           + Add
                         </button>
                       </div>
@@ -1346,15 +1509,26 @@ const WorkspaceDashboard = () => {
                   <div className="mt-6 space-y-3">
                     {memberChannels.length > 0 ? (
                       memberChannels.map((channel) => (
-                        <button key={channel.id} onClick={() => loadChannelDetail(channel.id)}
-                          className="w-full rounded-xl border border-stroke bg-gray-1 p-4 text-left transition hover:border-primary dark:border-stroke-dark dark:bg-dark-3">
+                        <button
+                          key={channel.id}
+                          onClick={() => loadChannelDetail(channel.id)}
+                          className="w-full rounded-xl border border-stroke bg-gray-1 p-4 text-left transition hover:border-primary dark:border-stroke-dark dark:bg-dark-3"
+                        >
                           <div className="flex items-start justify-between">
                             <div>
-                              <h4 className="font-semibold text-dark dark:text-white"># {channel.name}</h4>
-                              {channel.description && <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">{channel.description}</p>}
+                              <h4 className="font-semibold text-dark dark:text-white">
+                                # {channel.name}
+                              </h4>
+                              {channel.description && (
+                                <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">
+                                  {channel.description}
+                                </p>
+                              )}
                               <p className="mt-2 text-xs text-dark-4 dark:text-dark-6">
-                                {channel.memberCount} member{channel.memberCount !== 1 ? "s" : ""} •{" "}
-                                {channel.messageCount} message{channel.messageCount !== 1 ? "s" : ""}
+                                {channel.memberCount} member
+                                {channel.memberCount !== 1 ? "s" : ""} •{" "}
+                                {channel.messageCount} message
+                                {channel.messageCount !== 1 ? "s" : ""}
                               </p>
                             </div>
                             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary dark:bg-primary/20">
@@ -1488,11 +1662,16 @@ const WorkspaceDashboard = () => {
                   <div className="min-w-0">
                     <Link
                       href={profileHref}
-                      className="block truncate font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
+                      className="flex items-center gap-2 truncate font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
                     >
-                      {displayName(member)}
+                      <StatusLight
+                        lastActive={member.lastActive}
+                        size="small"
+                        className="shrink-0"
+                      />
+                      <span className="truncate">{displayName(member)}</span>
                       {isSelf && (
-                        <span className="ml-1.5 text-xs font-normal text-dark-4 dark:text-dark-6">
+                        <span className="ml-0.5 text-xs font-normal text-dark-4 dark:text-dark-6">
                           (you)
                         </span>
                       )}
