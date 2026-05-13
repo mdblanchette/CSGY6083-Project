@@ -17,9 +17,10 @@ interface SettingsFormData {
 interface SettingBoxesProps {
   file?: File;
   coverFile?: File;
+  returnChannel?: string | null;
 }
 
-const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
+const SettingBoxes = ({ file, coverFile, returnChannel }: SettingBoxesProps) => {
   const { data: session, update } = useSession();
   const sessionUser = session?.user as {
     email?: string | null;
@@ -288,8 +289,8 @@ const SettingBoxes = ({ file, coverFile }: SettingBoxesProps) => {
                 className="flex justify-center rounded-[7px] border border-stroke px-6 py-[7px] font-medium text-dark hover:shadow-1 dark:border-dark-3 dark:text-white"
                 type="button"
                 onClick={() => {
-                  if (window.history.length > 1) {
-                    router.back();
+                  if (returnChannel) {
+                    router.push(`/?channel=${returnChannel}`);
                     return;
                   }
                   router.push("/");

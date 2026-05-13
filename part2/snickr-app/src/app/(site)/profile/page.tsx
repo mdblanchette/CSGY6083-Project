@@ -58,7 +58,7 @@ function ProfileContent() {
             </p>
           </div>
 
-          <SettingBoxes file={file} coverFile={coverFile} />
+          <SettingBoxes file={file} coverFile={coverFile} returnChannel={returnChannel} />
         </div>
       </div>
     </div>

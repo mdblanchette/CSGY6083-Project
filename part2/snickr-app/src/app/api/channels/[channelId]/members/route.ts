@@ -9,6 +9,60 @@ const parseChannelId = (value: string) => {
   return Number.isFinite(id) ? id : null;
 };
 
+// POST — self-join a public channel
+export async function POST(
+  _request: Request,
+  context: { params: Promise<{ channelId: string }> },
+) {
+  try {
+    const { channelId: channelIdParam } = await context.params;
+    const channelId = parseChannelId(channelIdParam);
+    if (channelId === null) {
+      return NextResponse.json({ error: "Invalid channel id" }, { status: 400 });
+    }
+
+    const session = await getAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = Number(session.user.id);
+
+    const channelRow = await query(
+      `SELECT channel_type, workspace_id FROM channels WHERE channel_id = $1 LIMIT 1`,
+      [channelId],
+    );
+    if (channelRow.rows.length === 0) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+
+    const { channel_type, workspace_id } = channelRow.rows[0] as { channel_type: string; workspace_id: number };
+    if (channel_type.toLowerCase() !== "public") {
+      return NextResponse.json({ error: "Can only self-join public channels" }, { status: 403 });
+    }
+
+    const wsMember = await query(
+      `SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspace_id, userId],
+    );
+    if (wsMember.rows.length === 0) {
+      return NextResponse.json({ error: "Not a workspace member" }, { status: 403 });
+    }
+
+    await query(
+      `INSERT INTO channel_members (channel_id, user_id, is_admin, joined_at)
+       VALUES ($1, $2, false, NOW())
+       ON CONFLICT (channel_id, user_id) DO NOTHING`,
+      [channelId, userId],
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("JOIN CHANNEL ERROR:", error);
+    return NextResponse.json({ error: "Failed to join channel" }, { status: 500 });
+  }
+}
+
 // DELETE — leave a channel
 export async function DELETE(
   _request: Request,
