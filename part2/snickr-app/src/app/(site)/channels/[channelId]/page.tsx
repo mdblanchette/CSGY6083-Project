@@ -372,10 +372,13 @@ export default async function ChannelPage({
                       <div className="flex items-center justify-between gap-3">
                         {message.senderName ? (
                           <Link
-                            href={`/profile/${message.senderName}`}
-                            className="font-semibold text-dark dark:text-white hover:text-primary"
+                            href={`/profile/${message.senderName}?returnChannel=${data.channel.id}&returnWorkspace=${data.workspace.id}`}
+                            className="font-semibold text-dark hover:text-primary dark:text-white"
                           >
-                            {message.senderNickname || message.senderName || message.senderEmail || "Unknown User"}
+                            {message.senderNickname ||
+                              message.senderName ||
+                              message.senderEmail ||
+                              "Unknown User"}
                           </Link>
                         ) : (
                           <p className="font-semibold text-dark dark:text-white">
@@ -421,14 +424,17 @@ export default async function ChannelPage({
                       <div>
                         {member.username ? (
                           <Link
-                            href={`/profile/${member.username}`}
-                            className="font-semibold text-dark dark:text-white hover:text-primary"
+                            href={`/profile/${member.username}?returnChannel=${data.channel.id}&returnWorkspace=${data.workspace.id}`}
+                            className="font-semibold text-dark hover:text-primary dark:text-white"
                           >
                             {member.nickname || member.username}
                           </Link>
                         ) : (
                           <p className="font-semibold text-dark dark:text-white">
-                            {member.nickname || member.username || member.email || "Unknown User"}
+                            {member.nickname ||
+                              member.username ||
+                              member.email ||
+                              "Unknown User"}
                           </p>
                         )}
                         <p className="mt-1 text-sm text-dark-4 dark:text-dark-6">

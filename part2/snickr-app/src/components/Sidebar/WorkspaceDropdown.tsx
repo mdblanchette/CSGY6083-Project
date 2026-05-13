@@ -15,6 +15,7 @@ const WorkspaceDropdown = () => {
     workspaces,
     activeWorkspace,
     selectWorkspace,
+    activeWorkspaceId,
   } = useWorkspace();
 
   const [open, setOpen] = useState(false);
@@ -46,7 +47,10 @@ const WorkspaceDropdown = () => {
               </p>
 
               <span className="block truncate text-sm font-semibold text-dark dark:text-white">
-                {activeWorkspace?.name ?? "Create Workspace"}
+                {activeWorkspace?.name ??
+                  (workspaces.length === 0 && activeWorkspaceId
+                    ? "Loading…"
+                    : "Create Workspace")}
               </span>
             </div>
 

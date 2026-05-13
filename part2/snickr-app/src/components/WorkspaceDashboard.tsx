@@ -119,6 +119,12 @@ const WorkspaceDashboard = () => {
     const n = Number.parseInt(v, 10);
     return Number.isFinite(n) ? n : null;
   })();
+  const workspaceIdFromUrl = (() => {
+    const v = searchParams.get("workspace");
+    if (!v) return null;
+    const n = Number.parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  })();
 
   // undefined = never set; null = was null (loading); number = a real workspace
   const prevWorkspaceIdRef = useRef<number | null | undefined>(undefined);
@@ -257,9 +263,23 @@ const WorkspaceDashboard = () => {
     loadSummary();
     loadPendingChannelInvites();
 
+    const switchedRealWorkspace =
+      prevId !== undefined && prevId !== null && prevId !== activeWorkspaceId;
+
     // Only clear channel context when switching between two real workspaces.
     // Skip when prevId is undefined (initial mount) or null (workspace first loading in).
-    if (prevId !== undefined && prevId !== null) {
+    if (switchedRealWorkspace) {
+      // Preserve explicit back-to-channel navigation URLs.
+      const isExplicitChannelReturn =
+        channelIdFromUrl !== null &&
+        workspaceIdFromUrl !== null &&
+        activeWorkspaceId !== null &&
+        workspaceIdFromUrl === activeWorkspaceId;
+
+      if (isExplicitChannelReturn) {
+        return;
+      }
+
       // Remove the channel param from URL when switching workspaces to prevent
       // loading the old channel in the new workspace context
       const params = new URLSearchParams(searchParams.toString());
@@ -1205,7 +1225,7 @@ const WorkspaceDashboard = () => {
             {channelDetail.messages.length > 0 ? (
               channelDetail.messages.map((message) => {
                 const returnParam = selectedChannelId
-                  ? `?returnChannel=${selectedChannelId}`
+                  ? `?returnChannel=${selectedChannelId}${activeWorkspaceId ? `&returnWorkspace=${activeWorkspaceId}` : ""}`
                   : "";
                 const senderHref = message.senderName
                   ? message.senderName === session?.user?.username

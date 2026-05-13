@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import BackToChannelLink from "@/components/BackToChannelLink";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
 import ReadOnlyProfileBox from "@/components/ProfileBox/ReadOnlyProfileBox";
 import { query } from "@/libs/db";
@@ -106,12 +107,11 @@ export default async function ProfileViewPage({
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           {returnChannel && (
-            <Link
-              href={`/?channel=${returnChannel}`}
+            <BackToChannelLink
+              channel={returnChannel}
+              workspace={returnWorkspace}
               className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
-            >
-              ← Back to Channel
-            </Link>
+            />
           )}
           {returnWorkspace && !returnChannel && (
             <Link

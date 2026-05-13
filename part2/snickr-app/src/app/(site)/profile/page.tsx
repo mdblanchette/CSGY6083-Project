@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import BackToChannelLink from "@/components/BackToChannelLink";
 import { useSearchParams } from "next/navigation";
 import DefaultLayout from "@/components/Layouts/DefaultLaout";
 import ProfileBox from "@/components/ProfileBox";
@@ -30,12 +31,11 @@ function ProfileContent() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-6">
         {returnChannel && (
-          <Link
-            href={`/?channel=${returnChannel}`}
+          <BackToChannelLink
+            channel={returnChannel}
+            workspace={returnWorkspace}
             className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80"
-          >
-            ← Back to Channel
-          </Link>
+          />
         )}
         {returnWorkspace && !returnChannel && (
           <Link

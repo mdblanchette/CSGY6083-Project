@@ -3,6 +3,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { useSession } from "next-auth/react";
 
 interface SettingsFormData {
@@ -49,6 +50,7 @@ const SettingBoxes = ({
   });
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { selectWorkspace } = useWorkspace();
   const isDemo = session?.user?.email?.includes("demo-");
 
   useEffect(() => {
@@ -298,10 +300,18 @@ const SettingBoxes = ({
                 type="button"
                 onClick={() => {
                   if (returnChannel) {
-                    router.push(`/?channel=${returnChannel}`);
+                    if (returnWorkspace) {
+                      const id = Number.parseInt(returnWorkspace, 10);
+                      if (Number.isFinite(id)) selectWorkspace(id);
+                    }
+                    router.push(
+                      `/?channel=${returnChannel}${returnWorkspace ? `&workspace=${returnWorkspace}` : ""}`,
+                    );
                     return;
                   }
                   if (returnWorkspace) {
+                    const id = Number.parseInt(returnWorkspace, 10);
+                    if (Number.isFinite(id)) selectWorkspace(id);
                     router.push(`/?workspace=${returnWorkspace}`);
                     return;
                   }
